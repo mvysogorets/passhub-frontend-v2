@@ -508,32 +508,3 @@ function BankCardModal(props) {
 
 export default BankCardModal;
 
-
-
-/*
-    
-    axios
-      .post(`${getApiUrl()}items.php`, data)
-      .then((reply) => {
-        const result = reply.data;
-        if (result.status === "Ok") {
-          props.onClose(true);
-          return;
-        }
-        if (result.status === "login") {
-          window.location.href = "expired.php";
-          return;
-        }
-        if (result.status === "expired") {
-          window.location.href = "expired.php";
-          return;
-        }
-        setErrorMsg(result.status);
-        return;
-      })
-      .catch((err) => {
-        console.log("err ", err);
-        setErrorMsg("Server error. Please try again later");
-      });
-
-*/

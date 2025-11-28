@@ -332,7 +332,7 @@ function TablePane(props) {
                         <FolderMenuMobile
                             node={folder}
                             onMenuCmd={handleFolderMenuCmd}
-                            isSafe={true}
+                            isSafe={!folder.safe}
                         />
                     )}
                 </div>

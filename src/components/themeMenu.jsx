@@ -7,7 +7,7 @@ import { getUserData } from "../lib/userData";
 
 
 
-const themes = ["theme-lite", "theme-dark", "theme-dark2", "theme-dark5", "theme-darkgreen", /* "theme-darkgreen2" */];
+const themes = ["theme-lite", "theme-dark", "theme-dark2", "theme-dark5", "theme-darkgreen"];
 
 
 function switchTheme(theme) {
@@ -15,6 +15,11 @@ function switchTheme(theme) {
   document.querySelector("body").classList.remove(...themes);
 
   document.querySelector("body").classList.add(theme);
+  if (theme == "theme-lite") {
+    document.querySelector("body").removeAttribute("data-bs-theme");
+  } else {
+    document.querySelector("body").setAttribute("data-bs-theme", "dark");
+  }
 
   axios
     .post(`${getApiUrl()}account.php`, {

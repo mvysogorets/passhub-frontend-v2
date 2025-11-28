@@ -160,10 +160,16 @@ function Root(props) {
         }
 
         if ("theme" in data) {
-          const themes = ["theme-lite", "theme-dark2"];
+          const themes = ["theme-lite", "theme-dark", "theme-dark2", "theme-dark5", "theme-darkgreen"];
+
           document.querySelector("body").classList.remove(...themes);
 
           document.querySelector("body").classList.add(data.theme);
+          if (data.theme == "theme-lite") {
+            document.querySelector("body").removerAttribute("data-bs-theme");
+          } else {
+            document.querySelector("body").setAttribute("data-bs-theme", "dark");
+          }
         }
 
       }

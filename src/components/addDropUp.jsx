@@ -2,7 +2,7 @@ import React from "react";
 
 function AddDropUp(props) {
 
-  if(!props.show) {
+  if (!props.show) {
     return null;
   }
 
@@ -21,115 +21,129 @@ function AddDropUp(props) {
     props.onClose();
     props.handleAddClick(cmd);
   };
-    
-    const modalClasses = props.show ? "pmodal" : "pmodal d-none";
 
-    return (
-      <div className={modalClasses} onClick={handleOuterClick}>
+  const modalClasses = props.show ? "pmodal" : "pmodal d-none";
+
+  return (
+    <div className={modalClasses} onClick={handleOuterClick}>
+      <div
+        className="pmodal-body"
+        onClick={handleBodyClick}
+        style={{
+          right: props.right,
+          bottom: props.bottom,
+          width: 271,
+          background: "#1B1B26",
+          borderRadius: "16px",
+          color: "white",
+          padding: "8px 8px 8px 20px",
+        }}
+      >
         <div
-          className="pmodal-body"
-          onClick={handleBodyClick}
-          style={{
-            right: props.right,
-            bottom: props.bottom,
-            width: 271,
-            background: "#1B1B26",
-            borderRadius: "16px",
-            color: "white",
-            padding: "8px 8px 8px 20px",
-          }}
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "Password")}
         >
-          <div
-            className="addModalItem"
-            onClick={(e) => handleMenuCommand(e, "Password")}
+          <svg
+            width="24"
+            height="24"
+            style={{ marginRight: 10, verticalAlign: "text-bottom" }}
           >
-            <svg
-              width="24"
-              height="24"
-              style={{ marginRight: 10, verticalAlign: "text-bottom" }}
-            >
-              <use href="#f-key"></use>
-            </svg>
-            Password
-          </div>
-          <div
-            className="addModalItem"
-            onClick={(e) => handleMenuCommand(e, "Note")}
+            <use href="#f-key"></use>
+          </svg>
+          Password
+        </div>
+        <div
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "Note")}
+        >
+          <svg
+            width="24"
+            height="24"
+            style={{ marginRight: 10, verticalAlign: "text-bottom" }}
           >
-            <svg
-              width="24"
-              height="24"
-              style={{ marginRight: 10, verticalAlign: "text-bottom" }}
-            >
-              <use href="#f-note"></use>
-            </svg>
-            Note
-          </div>
-          <div
-            className="addModalItem"
-            onClick={(e) => handleMenuCommand(e, "File")}
+            <use href="#f-note"></use>
+          </svg>
+          Note
+        </div>
+        <div
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "File")}
+        >
+          <svg
+            width="24"
+            height="24"
+            style={{ marginRight: 10, verticalAlign: "text-bottom" }}
           >
-            <svg
-              width="24"
-              height="24"
-              style={{ marginRight: 10, verticalAlign: "text-bottom" }}
-            >
-              <use href="#f-file"></use>
-            </svg>
-            File
-          </div>
-          <div
-            className="addModalItem"
-            onClick={(e) => handleMenuCommand(e, "Bank Card")}
+            <use href="#f-file"></use>
+          </svg>
+          File
+        </div>
+        <div
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "Bank Card")}
+        >
+          <svg
+            width="24"
+            height="24"
+            style={{
+              marginRight: 10,
+              verticalAlign: "text-bottom",
+              fill: "white",
+              opacity: "0.7",
+            }}
           >
-            <svg
-              width="24"
-              height="24"
-              style={{
-                marginRight: 10,
-                verticalAlign: "text-bottom",
-                fill: "white",
-                opacity: "0.7",
-              }}
-            >
-              <use href="#credit_card"></use>
-            </svg>
-            Bank Card
-          </div>
-          <div
-            className="addModalItem"
-            onClick={(e) => handleMenuCommand(e, "Folder")}
+            <use href="#credit_card"></use>
+          </svg>
+          Bank Card
+        </div>
+        <div
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "Address")}
+        >
+          <svg
+            width="24"
+            height="24"
+            stroke="white"
+            style={{ marginRight: 10, verticalAlign: "text-bottom", opacity: 0.5 }}
           >
-            <svg
-              width="24"
-              height="24"
-              style={{ marginRight: 10, verticalAlign: "text-bottom" }}
-            >
-              <use href="#f-folder"></use>
+            <use href="#geo-alt"></use>
+          </svg>
+          Address
+        </div>
+        <div
+          className="addModalItem"
+          onClick={(e) => handleMenuCommand(e, "Folder")}
+        >
+          <svg
+            width="24"
+            height="24"
+            style={{ marginRight: 10, verticalAlign: "text-bottom" }}
+          >
+            <use href="#f-folder"></use>
+          </svg>
+          Folder
+        </div>
+        <div style={{ height: "40px" }}></div>
+        <div>
+          <span
+            onClick={props.onClose}
+            style={{
+              float: "right",
+              width: "80px",
+              height: "80px",
+              background: "rgba(255,255,255,0.15)",
+              borderRadius: "14px",
+              padding: "20px",
+            }}
+          >
+            <svg width="40" height="40">
+              <use href="#f-cross"></use>
             </svg>
-            Folder
-          </div>
-          <div style={{ height: "40px" }}></div>
-          <div>
-            <span
-              onClick={props.onClose}
-              style={{
-                float: "right",
-                width: "80px",
-                height: "80px",
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "14px",
-                padding: "20px",
-              }}
-            >
-              <svg width="40" height="40">
-                <use href="#f-cross"></use>
-              </svg>
-            </span>
-          </div>
+          </span>
         </div>
       </div>
-    );
+    </div>
+  );
 }
 
 export default AddDropUp;

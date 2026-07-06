@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 
 import Col from "react-bootstrap/Col";
 
@@ -9,7 +11,7 @@ import PasswordItem from "./passwordItem";
 import NoteItem from "./noteItem";
 import BankCardItem from "./bankCardItem";
 import FileItem from "./fileItem";
-
+import PasskeyItem from "./passkeyItem";
 import PasswordModal from "./passwordModal";
 import NoteModal from "./noteModal";
 import FileModal from "./fileModal";
@@ -25,7 +27,8 @@ import AddDropUp from "./addDropUp";
 import RefreshButton from './refreshButton';
 
 
-import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isNoteItem } from "../lib/utils";
+import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isNoteItem, isPasskeyItem, getVerifier, getApiUrl } from "../lib/utils";
+import * as passhubCrypto from "../lib/crypto";
 
 function TablePane(props) {
 
@@ -39,6 +42,7 @@ function TablePane(props) {
     const [sortBy, setSortBy] = useState("title");
 
     const newItemRef = useRef(null);
+    const queryClient = useQueryClient();
 
     if (!props.folder) {
         return null;
@@ -92,11 +96,96 @@ function TablePane(props) {
 
             setShowModal("FolderNameModal");
             setItemModalArgs({ parent: folder });
-        };
+        }
+        // TEMPORARY: Milestone 1 Testing - Remove after verification
+        if (cmd === "Test Passkey v6") {
+            createTestPasskey();
+        }
     };
 
     const showAddMenu = (e) => {
         setShowModal("addDropUp");
+    };
+
+    // TEMPORARY: Milestone 1 Testing - Remove after verification
+    // This function will become the basis for real Passkey creation UI
+    const testPasskeyAction = (args) => {
+        return axios
+            .post(`${getApiUrl()}${args.url}`, args.args)
+            .then((response) => {
+                const result = response.data;
+                if (result.status === "Ok") {
+                    alert("✓ Test Passkey v6 created successfully!\n\nNext steps:\n1. Check browser console for errors\n2. Verify no 'Error 450' alert\n3. Reload PassHub UI\n4. Verify app doesn't crash\n5. Delete test passkey after verification");
+                    return "Ok";
+                }
+                if (result.status === "login") {
+                    window.location.href = "expired.php";
+                    return;
+                }
+                alert(`Error creating test passkey: ${result.status}`);
+                return;
+            })
+            .catch((err) => {
+                console.error("Test passkey creation error:", err);
+                alert("Server error. Please try again later");
+            });
+    };
+
+    const testPasskeyMutation = useMutation({
+        mutationFn: testPasskeyAction,
+        onSuccess: data => {
+            queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
+        },
+    });
+
+    const createTestPasskey = () => {
+        const safe = folder.safe ? folder.safe : folder;
+        const aesKey = safe.bstringKey;
+        const SafeID = safe.id;
+        const folderID = folder.safe ? folder.id : 0;
+
+        // Minimal test passkey metadata (not real cryptographic keys)
+        const testPasskeyMetadata = {
+            credentialId: btoa("test-credential-16b"),
+            privateKey: "encrypted-test-private-key-placeholder",
+            publicKey: JSON.stringify({
+                kty: "EC",
+                crv: "P-256",
+                x: "test-x-coordinate-value-base64url",
+                y: "test-y-coordinate-value-base64url"
+            }),
+            userHandle: btoa("test-user-hand16b"),
+            counter: 0,
+            rpId: "example.com"
+        };
+
+        // Cleartext structure (same as real passkey items will use)
+        const cleartextArray = [
+            "Milestone 1 Test Passkey",       // title
+            "Example Site",                   // siteName  
+            "test@example.com",               // username
+            "example.com",                    // rpId
+            "Automated test for Milestone 1"  // notes
+        ];
+
+        // Use existing crypto.js encryption with v6 options
+        const options = {
+            version: 6,
+            type: "passkey",
+            passkey: testPasskeyMetadata
+        };
+
+        const eData = passhubCrypto.encryptItem(cleartextArray, aesKey, options);
+
+        const data = {
+            verifier: getVerifier(),
+            vault: SafeID,
+            folder: folderID,
+            encrypted_data: eData,
+        };
+
+        console.log("[Milestone 1 Test] Creating test passkey v6...");
+        testPasskeyMutation.mutate({ url: "items.php", args: data });
     };
 
     const onItemModalClose = (refresh = false) => {
@@ -215,7 +304,9 @@ function TablePane(props) {
         if (isNoteItem(item)) return item.cleartext[0];
         if (isFileItem(item)) return item.cleartext[0];
         if (isBankCardItem(item)) return item.cleartext[1];
-    }
+        if (isPasskeyItem(item)) return item.cleartext[0];
+        return "";
+        }
     const sortItemsFunction = (a, b) => {
 
         if (sortBy == 'title') {
@@ -439,6 +530,14 @@ function TablePane(props) {
                                                 showModal={(item) =>
                                                     showItemModal("BankCardModal", item)
                                                 }
+                                            />
+                                        )) ||
+                                        (isPasskeyItem(f) && (
+                                            <PasskeyItem
+                                                item={f}
+                                                key={`item${f._id}`}
+                                                searchMode={props.searchMode}
+                                                newItem={newItemRef.current == f._id}
                                             />
                                         ))
                                 )}

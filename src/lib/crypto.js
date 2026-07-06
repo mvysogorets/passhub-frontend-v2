@@ -307,10 +307,22 @@ function decodeItemGCM(item, aesKey) {
 }
 
 function decodeItem(item, aesKey) {
-  if ((item.version === 3) || (item.version === 4) || (item.version === 5)) {
-    return decodeItemGCM(item, aesKey);
+
+   if (item.history) {
+    if (item.history.length > 0) {
+      for (const i of item.history) {
+        //        i.cleartext = decodeItem(i, aesKey);
+        decodeItem(i, aesKey);
+
+      }
+      //history.unshift(props.args.item);
+    }
   }
 
+  if ((item.version === 3) || (item.version === 4) || (item.version === 5) || (item.version === 6))  {
+    return decodeItemGCM(item, aesKey);
+  }
+  
   const decipher = forge.cipher.createDecipher('AES-ECB', aesKey);
   decipher.start({ iv: forge.random.getBytesSync(16) });
 

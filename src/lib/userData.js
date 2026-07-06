@@ -309,6 +309,12 @@ async function downloadUserData() {
   */
 };
 
+// For debug in the DevTools
+if (typeof window !== 'undefined') {
+  window.getUserData = getUserData;
+  window.getAccountData = getAccountData;
+}
+
 export {
   downloadUserData,
   getUserData,

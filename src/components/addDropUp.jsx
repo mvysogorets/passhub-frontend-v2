@@ -109,6 +109,15 @@ function AddDropUp(props) {
             </svg>
             Folder
           </div>
+          {/* TEMPORARY: Milestone 1 Testing - Remove after verification */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", margin: "8px 0" }}></div>
+          <div
+            className="addModalItem"
+            onClick={(e) => handleMenuCommand(e, "Test Passkey v6")}
+            style={{ color: "#ffc107", fontSize: "13px" }}
+          >
+            🧪 Test Passkey v6
+          </div>
           <div style={{ height: "40px" }}></div>
           <div>
             <span

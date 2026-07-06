@@ -118,6 +118,14 @@ function AddDropUp(props) {
           >
             🧪 Test Passkey v6
           </div>
+          {/* TEMPORARY: Milestone 2 Testing - Remove after verification */}
+          <div
+            className="addModalItem"
+            onClick={(e) => handleMenuCommand(e, "Test passkey_ops.php")}
+            style={{ color: "#17a2b8", fontSize: "13px" }}
+          >
+            🔧 Test passkey_ops.php
+          </div>
           <div style={{ height: "40px" }}></div>
           <div>
             <span

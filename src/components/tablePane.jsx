@@ -101,6 +101,10 @@ function TablePane(props) {
         if (cmd === "Test Passkey v6") {
             createTestPasskey();
         }
+        // TEMPORARY: Milestone 2 Testing - Remove after verification
+        if (cmd === "Test passkey_ops.php") {
+            testPasskeyOpsEndpoint();
+        }
     };
 
     const showAddMenu = (e) => {
@@ -137,6 +141,25 @@ function TablePane(props) {
             queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
         },
     });
+
+    // TEMPORARY: Milestone 2 Testing - Test passkey_ops.php endpoint
+    const testPasskeyOpsEndpoint = () => {
+        console.log("[Milestone 2 Test] Testing passkey_ops.php endpoint...");
+        
+        // Test 1: getStats operation
+        axios.post(`${getApiUrl()}passkey_ops.php`, {
+            verifier: getVerifier(),
+            operation: 'getStats'
+        })
+        .then(response => {
+            console.log("✅ passkey_ops.php getStats:", response.data);
+            alert(`✓ passkey_ops.php endpoint works!\n\nResponse: ${JSON.stringify(response.data, null, 2)}\n\nCheck console for details.`);
+        })
+        .catch(err => {
+            console.error("❌ passkey_ops.php error:", err);
+            alert(`✗ Error testing passkey_ops.php\n\nCheck console for details.`);
+        });
+    };
 
     const createTestPasskey = () => {
         const safe = folder.safe ? folder.safe : folder;

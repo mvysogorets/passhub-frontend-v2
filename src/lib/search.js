@@ -6,7 +6,6 @@ import {
   isNoteItem,
 } from "./utils";
 
-
 import { getTOTP, getTOTP2 } from "./totp";
 
 

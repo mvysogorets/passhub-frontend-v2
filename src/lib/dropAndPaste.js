@@ -15,9 +15,9 @@ function moveItemFinalize(recordID, src_safe, dst_safe, dst_folder, item, operat
       item,
       operation,
     })
-    .then( response => {
+    .then(response => {
       const result = response.data;
-      if(result.status === "Ok") {
+      if (result.status === "Ok") {
         return result.status;
       }
       throw new Error(result.status);
@@ -29,27 +29,27 @@ function moveFolder(safes, targetNode, folderID) {
   const dstBinaryKey = targetNode.safe ? targetNode.safe.bstringKey : targetNode.bstringKey;
   const srcFolder = getFolderById(safes, folderID);
   const folder = passhubCrypto.encryptFolder(srcFolder, dstBinaryKey);
-  if(srcFolder.path.length > 1) {
-    if(srcFolder.path[srcFolder.path.length-2][1] == targetNode.id) {
+  if (srcFolder.path.length > 1) {
+    if (srcFolder.path[srcFolder.path.length - 2][1] == targetNode.id) {
       console.log("move to parent: identity operation");
-      return Promise.reject({message: "move to parent: identity operation"});
-    }  
+      return Promise.reject({ message: "move to parent: identity operation" });
+    }
   }
-  
+
   let dstSafe = targetNode.id;
   let dstFolder = 0;
   if (targetNode.safe) {
     dstSafe = targetNode.safe.id;
     dstFolder = targetNode.id;
-    for(const pathEntry of targetNode.path) {
+    for (const pathEntry of targetNode.path) {
       if (pathEntry[1] == folderID) {
-        return new Promise(function(resolve, reject) {
-          reject({message: "drop into child"});
+        return new Promise(function (resolve, reject) {
+          reject({ message: "drop into child" });
         })
       };
     }
   }
-  
+
   return axios
     .post(`${getApiUrl()}move.php`, {
       verifier: getVerifier(),
@@ -57,12 +57,12 @@ function moveFolder(safes, targetNode, folderID) {
       dstSafe,
       dstFolder
     })
-    .then( response => response.data.status);
+    .then(response => response.data.status);
 }
 
 
 function doMove(safes, targetNode, item, operation) {
-  if("type" in item) { //ad-hoc folder
+  if ("type" in item) { //ad-hoc folder
     return moveFolder(safes, targetNode, item.id);
   }
 
@@ -89,7 +89,7 @@ function doMove(safes, targetNode, item, operation) {
       operation,
       checkRights: true,
     })
-    .then( response => {
+    .then(response => {
       const result = response.data;
       if (result.status === "Ok") {
         if ("file" in item) {
@@ -118,7 +118,8 @@ function doMove(safes, targetNode, item, operation) {
         let eItem = passhubCrypto.encryptItem(
           item.cleartext,
           dstBinaryKey,
-          options
+          options,
+          item.history
         );
 
         return moveItemFinalize(
@@ -135,4 +136,4 @@ function doMove(safes, targetNode, item, operation) {
     })
 };
 
-export {doMove, moveFolder};
+export { doMove, moveFolder };

@@ -33,6 +33,11 @@
     src: url("/fonts/OpenSans-Bold.ttf");
 }
 
+::-ms-reveal {
+    /* prevent ms edge to show an eye button inside uinput type=password */
+    display: none;
+}
+
 html,
 body,
 #root,
@@ -43,17 +48,6 @@ body,
 * {
     font-family: OpenSans;
 }
-
-/*
-@import './scss/theme-light.scss';
-@import './scss/theme-dark.scss';
-@import './scss/theme-dark2.scss';
-@import './scss/theme-dark5.scss';
-@import './scss/theme-darkgreen.scss';
-// @import './scss/theme-darkgreen2.scss';
-*/
-
-
 
 body {
     --bs-body-color: var(--body-color);

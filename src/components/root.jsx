@@ -12,7 +12,6 @@ import { useIdleTimer } from "react-idle-timer";
 
 import Header from "./header";
 import MainPage from "./mainPage";
-import ViewFile from "./viewFile";
 import SurveyToast from "./surveyToast";
 import CopyMoveToast from './copyMoveToast';
 
@@ -28,7 +27,7 @@ import { downloadUserData } from "../lib/userData";
 
 import { advise } from "../lib/search";
 import * as extensionInterface from "../lib/extensionInterface";
-import { keepTicketAlive, enablePaste, serverLog, getApiUrl, getVerifier, getFolderById } from "../lib/utils";
+import { keepTicketAlive, enablePaste, serverLog, getApiUrl, getVerifier, getFolderById, logMeOut } from "../lib/utils";
 
 let firstTime = true;
 let idleM = null;
@@ -37,7 +36,6 @@ let copyMoveOperation = "";
 
 function userDataQuery() {
 
-  //console.log("userData query called");
 
   progress.lock(240);
   return downloadUserData()
@@ -54,9 +52,9 @@ extensionInterface.connect(advise);
 
 document.addEventListener("passhubExtInstalled", function (data) {
   console.log("got passhubExtInstalled");
-  extensionInterface.connect(advise);
+  extensionInterface.InitiateExtensionConnection();
+  //  extensionInterface.connect(advise);
 });
-
 
 let wrongOrigin = 0;
 
@@ -69,8 +67,6 @@ function listenToPaymentMessage(cb) {
       //           console.log(`--got ${event.data.source}--`);
       return;
     }
-    console.log('got message');
-    console.log(event);
 
     if (event.origin !== window.location.origin) {
       if (wrongOrigin < 5) {
@@ -78,13 +74,11 @@ function listenToPaymentMessage(cb) {
         serverLog(`payment message orign ${event.origin}`)
         wrongOrigin++;
       }
-      console.log(`payment message origin ${event.origin}`);
       return;
     }
     if (event.data == "payment_success") {
       cb();
       return;
-      //        this.getAccountData();
     }
 
     if (event.data == "payment_cancel") {
@@ -160,14 +154,18 @@ function Root(props) {
         }
 
         if ("theme" in data) {
-          const themes = ["theme-lite", "theme-dark2"];
+          const themes = ["theme-lite", "theme-dark", "theme-dark2", "theme-dark5", "theme-darkgreen"];
+
           document.querySelector("body").classList.remove(...themes);
 
           document.querySelector("body").classList.add(data.theme);
+          if (data.theme == "theme-lite") {
+            document.querySelector("body").removeAttribute("data-bs-theme");
+          } else {
+            document.querySelector("body").setAttribute("data-bs-theme", "dark");
+          }
         }
-
       }
-      console.log('userData query Fn done');
       return data;
     }),
     refetchOnWindowFocus: false
@@ -194,13 +192,10 @@ function Root(props) {
 
 
   useEffect(() => {
-    console.log('focusManager.subscribe');
     const unsubscribe = focusManager.subscribe((isVisible) => {
-      console.log('isVisible', isVisible)
       if (isVisible) {
         if (lastInvisibleTime > 0 && ((new Date().getTime() - lastInvisibleTime) > 60 * 1000)) {
           const unseen = (new Date().getTime() - lastInvisibleTime) / 1000;
-          console.log('unseen for ' + unseen + ' sec');
           queryClient.invalidateQueries({ queryKey: ["userData"], exact: true })
         }
       } else {
@@ -218,7 +213,7 @@ function Root(props) {
     promptBeforeIdle: 60 * 1000,
     onIdle: () => {
       console.log('onIdle timeout');
-      window.location = "logout.php";
+      logMeOut();
     },
     onPrompt: () => {
       console.log('onPropmt timeout');
@@ -240,9 +235,6 @@ function Root(props) {
   let expiryTimestamp = new Date();
 
 
-
-
-
   const {
     totalSeconds,
     seconds,
@@ -255,7 +247,7 @@ function Root(props) {
     resume,
     restart: restartCopyMoveToastTimer,
   } = useTimer({
-    // expiryTimestamp,  // ? version 3 to version 4 migration
+    expiryTimestamp,  // ? version 3 to version 4 migration
     autoStart: false,
     onExpire: () => {
       if (showToast == "CopyMoveToast") {
@@ -311,13 +303,6 @@ function Root(props) {
     //    enablePaste(false);
   }
 
-  const inMemoryView = (blob, filename) => {
-    setPage("ViewFile");
-    setFilename(filename);
-    setBlob(blob);
-    console.log("inMemory view", filename);
-  };
-
   const gotoMain = () => {
     if (page == "Main") {
       // for mobile:
@@ -367,14 +352,6 @@ function Root(props) {
       </Header>
 
       <Row className="mainRow">
-
-        <ViewFile
-          show={page === "ViewFile"}
-          gotoMain={gotoMain}
-          filename={filename}
-          blob={blob}
-        />
-
         <MainPage
           show={page === "Main"}
           safes={udata.safes}
@@ -390,8 +367,6 @@ function Root(props) {
 
           showCopyMoveToast={showCopyMoveToast}
           hideCopyMoveToast={hideCopyMoveToast}
-
-          inMemoryView={inMemoryView}
           key='main-page'>
 
         </MainPage>

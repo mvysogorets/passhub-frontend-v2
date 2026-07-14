@@ -3,7 +3,7 @@
 import ThemeMenu from "./themeMenu";
 import { contextMenu, Menu, Item } from "react-contexify";
 
-import { getApiUrl, getVerifier, humanReadableFileSize } from "../lib/utils";
+import { getApiUrl, getVerifier, humanReadableFileSize, logMeOut } from "../lib/utils";
 
 import { getUserData } from "../lib/userData";
 
@@ -38,7 +38,7 @@ function AccountDropDown(props) {
   };
 
   const handleLogout = () => {
-    window.location = "logout.php";
+    logMeOut();
   };
 
   const handleMenuCommand = (e, cmd) => {
@@ -66,6 +66,7 @@ function AccountDropDown(props) {
   };
 
   const accountData = getUserData();
+  const nmenu = Array.isArray(props.nmenu) ? props.nmenu : [];
 
   const modalClasses = props.show ? "pmodal" : "pmodal d-none";
 
@@ -97,9 +98,11 @@ function AccountDropDown(props) {
                 fontSize: "13px",
                 lineHeight: "24px",
                 color: "#979797",
+                display: "flex",
+                gap: 20
               }}
             >
-              Free account{" "}
+              <span>Free account</span>
               <a className="link" href="#" onClick={onUpgrade}>
                 Upgrade
               </a>
@@ -213,6 +216,18 @@ function AccountDropDown(props) {
           </svg>
           Import
         </div>
+
+        {nmenu.includes("Bind key") && (
+          <div
+            className="account-menu-item"
+            onClick={(e) => handleMenuCommand(e, "Bind key")}
+          >
+            <svg width="24" height="24">
+              <use href="#f-key"></use>
+            </svg>
+            Bind key
+          </div>
+        )}
 
         {accountData.msp ? (
           <div

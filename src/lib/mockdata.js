@@ -1,7 +1,7 @@
 const mockData = {
   goPremium: false,
   takeSurvey: true,
-  plan: "FREE",
+  plan: "FREE-26",
   /*  theme: "theme-dark", */
   safes: [
     {

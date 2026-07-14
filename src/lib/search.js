@@ -17,10 +17,12 @@ const paymentCards = () => {
       // key!= null => confirmed, better have a class
       for (const item of safe.rawItems) {
         if (item.version === 5 && item.cleartext[0] === "card") {
+          const cleartext = [...item.cleartext];
+          cleartext[3] = cleartext[3].replace(/\D/g, "");
           cards.push({
             safe: safe.name,
-            title: item.cleartext[1],
-            card: item.cleartext,
+            title: cleartext[1],
+            card: cleartext,
           });
         }
       }
@@ -29,10 +31,25 @@ const paymentCards = () => {
   return { id: "payment", found: cards };
 };
 
+function wildcardHostMatch(pattern, hostname) {
+  const escapedPattern = pattern
+    .replace(/([.+^${}()|[\]\\])/g, "\\$1")
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".");
+
+  const matcher = new RegExp(`^${escapedPattern}$`);
+  const result = matcher.test(hostname);
+  return result;
+}
+
 function hostInItem(hostname, item) {
   const urls = item.cleartext[3].split("\x01");
 
   for (let url of urls) {
+    if (url.length == 0) {
+      continue;
+    }
+
     try {
       url = url.toLowerCase();
       if (url.substring(0, 4) != "http") {
@@ -43,10 +60,13 @@ function hostInItem(hostname, item) {
       if (itemHost.substring(0, 4) === "www.") {
         itemHost = itemHost.substring(4);
       }
-      if (itemHost == hostname) {
+
+      if (wildcardHostMatch(decodeURI(itemHost), hostname)) {
         return true;
       }
-    } catch (err) { }
+    } catch (err) {
+      console.log(err);
+    }
   }
   return false
 }
@@ -70,26 +90,28 @@ async function advise(what) {
           // key!= null => confirmed, better have a class
           const items = safe.rawItems;
           for (const item of items) {
-            if (hostInItem(hostname, item)) {
-              if ((item.cleartext.length > 5) && (item.cleartext[5].length > 0)) {
-                const secret = item.cleartext[5];
+            if (isPasswordItem(item)) {
+              if (hostInItem(hostname, item)) {
+                if ((item.cleartext.length > 5) && (item.cleartext[5].length > 0)) {
+                  const secret = item.cleartext[5];
 
-                let [totp, totp_next] = await getTOTP2(secret)
-                result.push({
-                  safe: safe.name,
-                  title: item.cleartext[0],
-                  username: item.cleartext[1],
-                  password: item.cleartext[2],
-                  totp,
-                  totp_next
-                });
-              } else {
-                result.push({
-                  safe: safe.name,
-                  title: item.cleartext[0],
-                  username: item.cleartext[1],
-                  password: item.cleartext[2],
-                })
+                  let [totp, totp_next] = await getTOTP2(secret)
+                  result.push({
+                    safe: safe.name,
+                    title: item.cleartext[0],
+                    username: item.cleartext[1],
+                    password: item.cleartext[2],
+                    totp,
+                    totp_next
+                  });
+                } else {
+                  result.push({
+                    safe: safe.name,
+                    title: item.cleartext[0],
+                    username: item.cleartext[1],
+                    password: item.cleartext[2],
+                  })
+                }
               }
             }
           }
@@ -156,14 +178,19 @@ const search = (what, searchType = '--All--') => {
             found = true;
           }
         } else {
-          if (item.cleartext[0].toLowerCase().indexOf(lcWhat) >= 0) {
-            found = true;
-          } else if (item.cleartext[1].toLowerCase().indexOf(lcWhat) >= 0) {
-            found = true;
-          } else if (item.cleartext[3].toLowerCase().indexOf(lcWhat) >= 0) {
-            found = true;
-          } else if (item.cleartext[4].toLowerCase().indexOf(lcWhat) >= 0) {
-            found = true;
+          try {
+            if (item.cleartext[0].toLowerCase().indexOf(lcWhat) >= 0) {
+              found = true;
+            } else if (item.cleartext[1].toLowerCase().indexOf(lcWhat) >= 0) {
+              found = true;
+            } else if (item.cleartext[3].toLowerCase().indexOf(lcWhat) >= 0) {
+              found = true;
+            } else if (item.cleartext[4].toLowerCase().indexOf(lcWhat) >= 0) {
+              found = true;
+            }
+          } catch (error) {
+            console.log(error);
+            console.log(item);
           }
         }
         if (found) {

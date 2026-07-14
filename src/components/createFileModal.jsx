@@ -78,7 +78,7 @@ const uploadFileP = (theFile, SafeID, folderID, note, aesKey, props) =>
             window.location.href = "expired.php";
             return;
           }
-          throw new Error(result.data.status);
+          throw new Error(result.status);
         })
     })
 

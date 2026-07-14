@@ -1,5 +1,5 @@
 import * as WWPass from 'wwpass-frontend';
-import { serverLog } from './utils';
+import { lastModified, serverLog } from './utils';
 import forge from 'node-forge';
 
 let WebCryptoPrivateKey = null;
@@ -233,7 +233,7 @@ function createSafe(name) {
   return { /*name, */ eName, aes_key: hexEncryptedAesKey, version: 3 };
 };
 
-function createSafeFromFolder(folder) {
+function createSafeFromFolder(folder, needBinaryKey = false) {
   const aesKey = forge.random.getBytesSync(32);
   const hexEncryptedAesKey = encryptAesKey(publicKeyPem, aesKey);
   const result = {};
@@ -251,11 +251,38 @@ function createSafeFromFolder(folder) {
       result.folders.push(encryptFolder(folder.folders[f], aesKey));
     }
   }
-  return result;
+  if (!needBinaryKey) {
+    return result;
+  }
+  return { safe: result, binaryKey: aesKey }
+}
+
+function convertFolderToSafe(folder, needBinaryKey = false) {
+  const aesKey = forge.random.getBytesSync(32);
+  const hexEncryptedAesKey = encryptAesKey(publicKeyPem, aesKey);
+  const result = {};
+  result.key = hexEncryptedAesKey;
+  //     result.name = folder.name;
+  result.eName = encryptSafeName(folder.name, aesKey);
+  result.version = 3;
+  result.items = [];
+  for (let e = 0; e < folder.items.length; e++) {
+    result.items.push(encryptItem(folder.items[e].cleartext, aesKey, folder.items[e].options));
+  }
+  result.folders = [];
+  if ('folders' in folder) {
+    for (let f = 0; f < folder.folders.length; f++) {
+      result.folders.push(encryptFolder(folder.folders[f], aesKey));
+    }
+  }
+  if (!needBinaryKey) {
+    return result;
+  }
+  return { safe: result, binaryKey: aesKey }
 }
 
 function decryptSafeName(safe, aesKey) {
-  if ("version" in safe) {
+  if (("version" in safe) && (safe.version == 3)) {   //
     const decipher = forge.cipher.createDecipher('AES-GCM', aesKey);
     decipher.start({ iv: atob(safe.eName.iv), tag: atob(safe.eName.tag) });
     decipher.update(forge.util.createBuffer(atob(safe.eName.data)));
@@ -275,11 +302,16 @@ function encryptFolder(folder, aes_key) {
     result._id = folder._id;
   }
   for (const item of folder.items) {
-    let options = {};
-    if (item.note) {
-      options["note"] = item.note;
-    } else if (item.version === 5) {
-      options["version"] = item.version;
+    let options = {}
+
+    if (!("options" in item)) {  // who did it?
+      if (item.note) {
+        options["note"] = item.note;
+      } else if (item.version === 5) {
+        options["version"] = item.version;
+      }
+    } else {
+      options = item.options;
     }
 
     if ("file" in item) { // only possible when moving Folder
@@ -306,9 +338,27 @@ function decodeItemGCM(item, aesKey) {
   return decipher.output.toString('utf8').split('\0');
 }
 
+
+// in-place adds cleartext to the item
 function decodeItem(item, aesKey) {
+
+  if (item.history) {
+    if (item.history.length > 0) {
+      for (const i of item.history) {
+        //        i.cleartext = decodeItem(i, aesKey);
+        decodeItem(i, aesKey);
+
+      }
+      //history.unshift(props.args.item);
+    }
+  }
+
+
   if ((item.version === 3) || (item.version === 4) || (item.version === 5)) {
-    return decodeItemGCM(item, aesKey);
+    const cleartext = decodeItemGCM(item, aesKey);
+    item.cleartext = cleartext;
+    return;
+    //    return decodeItemGCM(item, aesKey);
   }
 
   const decipher = forge.cipher.createDecipher('AES-ECB', aesKey);
@@ -319,13 +369,20 @@ function decodeItem(item, aesKey) {
     decipher.update(forge.util.createBuffer(encryptedData));
     const result = decipher.finish(); // check 'result' for true/false
     const creds = decipher.output.toString('utf8').split('\0');
-    return [item.title, creds[0], creds[1], item.url, item.notes];
+    item.cleartext = [item.title, creds[0], creds[1], item.url, item.notes];
+    return;
+    //    return [item.title, creds[0], creds[1], item.url, item.notes];
+
   }
   if (item.version === 2) {
     const encryptedData = forge.util.hexToBytes(item.data);
     decipher.update(forge.util.createBuffer(encryptedData));
     const result = decipher.finish(); // check 'result' for true/false
-    return decipher.output.toString('utf8').split('\0');
+    let cleartext = decipher.output.toString('utf8').split('\0');
+    item.cleartext = cleartext;
+    return;
+    //     return decipher.output.toString('utf8').split('\0');
+
   }
   alert(`Error 450: cannot decode data version ${item.version}`); //  ??
   return null;
@@ -354,7 +411,76 @@ function encryptFolderName(cleartextName, aesKey) {
   });
 }
 
-function encryptItemGCM(cleartextItem, aesKey, options) {
+function encryptClearText(cleartext, aesKey) {
+  const cleartextData = cleartext.join('\0');
+  const cipher = forge.cipher.createCipher('AES-GCM', aesKey);
+  const iv = forge.random.getBytesSync(16);
+  cipher.start({ iv });
+  cipher.update(forge.util.createBuffer(cleartextData, 'utf8')); // already joined by encode_item (
+  const result = cipher.finish(); // check 'result' for true/false
+
+  const obj = {
+    iv: btoa(iv),
+    data: btoa(cipher.output.data),
+    tag: btoa(cipher.mode.tag.data),
+    version: 3,
+  };
+
+  return obj;
+
+}
+
+function encryptItemGCM(cleartext, aesKey, options, history) {
+
+  const obj = encryptClearText(cleartext, aesKey);
+
+  if ((typeof (options) == "object") && ("version" in options)) {
+    obj.version = options.version;
+  } else if (cleartext.length === 6) {
+    obj.version = 4;
+  }
+
+  const history_out = [];
+  if (history) {
+    for (const historyItem of history) {
+
+      // we decode history ad hoc: first, when in Item Modal; dialog, second, when drag&drop item to another
+      // but.. we need source safe key
+      // we could do it during decoding the user data, but the structure of the code is not suitable there.. 
+      if (!historyItem.cleartext) {
+
+      }
+
+      const obj = encryptClearText(historyItem.cleartext, aesKey);
+      if (historyItem.lastModified) {
+        obj["lastModified"] = historyItem.lastModified;
+      }
+      if ("version" in historyItem) {
+        obj.version = historyItem.version;
+      } else if (historyItem.cleartext.length === 6) {
+        obj.version = 4;
+      }
+      history_out.push(obj)
+    }
+
+  }
+  if (history_out.length > 0) {
+    obj["history"] = history_out;
+  }
+
+
+  if (typeof options !== 'undefined') {
+    // Object.assign "polifill"
+    for (let prop1 in options) {
+      obj[prop1] = options[prop1];
+    }
+  }
+
+  return JSON.stringify(obj);
+}
+
+
+function encryptItemGCMX(cleartextItem, aesKey, options, history) {
   const cleartextData = cleartextItem.join('\0');
   const cipher = forge.cipher.createCipher('AES-GCM', aesKey);
   const iv = forge.random.getBytesSync(16);
@@ -369,7 +495,7 @@ function encryptItemGCM(cleartextItem, aesKey, options) {
     version: 3,
   };
 
-  if (options.version) {
+  if ((typeof (options) == "object") && ("version" in options)) {
     obj.version = options.version;
   } else if (cleartextItem.length === 6) {
     obj.version = 4;
@@ -385,8 +511,8 @@ function encryptItemGCM(cleartextItem, aesKey, options) {
 }
 
 
-function encryptItem(item, aesKey, options) {
-  return encryptItemGCM(item, aesKey, options);
+function encryptItem(item, aesKey, options, history) {
+  return encryptItemGCM(item, aesKey, options, history);
 }
 
 function encryptFile(pFileContent, aesKey) {
@@ -543,6 +669,7 @@ export {
   encryptGroupName,
   createSafe,
   createSafeFromFolder,
+  convertFolderToSafe,
   encryptFolderName,
   encryptFolder,
   encryptItem,

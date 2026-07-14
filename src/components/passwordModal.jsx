@@ -80,6 +80,37 @@ function PasswordModal(props) {
 
   totpTimerAddListener(timerEvent);
 
+  const limitedView = (props.args.safe.user_role == 'limited view');
+
+
+  function itemToState(item) {
+    let _url = "";
+    let _secondaryUrl = "";
+    let _totpSecret = "";
+
+    if (item) {
+      let urls = item.cleartext[3].trim().split('\x01');
+      _url = urls[0];
+      if (urls.length > 1) {
+        _secondaryUrl = urls[1];
+      }
+      if (item.cleartext.length > 5) {
+        _totpSecret = item.cleartext[5].toUpperCase();
+      }
+    }
+
+    let _password = "";
+    if (item) {
+      if (limitedView) {
+        _password = "* hidden *";
+      } else {
+        _password = item.cleartext[2];
+      }
+    }
+    return { _url, _secondaryUrl, _totpSecret, _password }
+  }
+
+  /*
   let _url = "";
   let _secondaryUrl = "";
   let _totpSecret = "";
@@ -95,7 +126,6 @@ function PasswordModal(props) {
     }
   }
 
-  const limitedView = (props.args.safe.user_role == 'limited view');
 
   let _password = "";
   if (props.args.item) {
@@ -105,6 +135,11 @@ function PasswordModal(props) {
       _password = props.args.item.cleartext[2];
     }
   }
+*/
+
+
+  const { _url, _secondaryUrl, _totpSecret, _password } = itemToState(props.args.item);
+
 
   const [edit, setEdit] = useState(props.args.item ? false : true);
   const [showPassword, setShowPassword] = useState(false);
@@ -120,7 +155,6 @@ function PasswordModal(props) {
   const [urlWarning, setUrlWarning] = useState("");
   const [totpWarning, setTotpWarning] = useState("");
   const [newItemId, setNewItemId] = useState(null);
-
 
   /*
 
@@ -334,55 +368,61 @@ function PasswordModal(props) {
 
   };
 
-  const showOTP1 = () => {
-    if (
-      edit ||
-      !props.show ||
-      !props.args.item ||
-      props.args.item.cleartext.length < 6
-    ) {
-      return;
-    }
 
-    const secret = props.args.item.cleartext[5];
-    if (secret.length > 0) {
-      const s = secret.replace(/\s/g, "").toUpperCase();
-      try {
-        const secretBytes = new Uint8Array(base32.decode.asBytes(s));
-
-        window.crypto.subtle
-          .importKey(
-            "raw",
-            secretBytes,
-            { name: "HMAC", hash: { name: "SHA-1" } },
-            false,
-            ["sign"]
-          )
-          .then((key) => getTOTP(key))
-          .then((six) => {
-            document
-              .querySelectorAll(".totp_digits")
-              .forEach((e) => (e.innerText = six));
-          });
-      } catch (err) {
-        document
-          .querySelectorAll(".totp_digits")
-          .forEach((e) => (e.innerText = "invalid TOTP secret"));
+  /*
+    const showOTP1 = () => {
+      if (
+        edit ||
+        !props.show ||
+        !props.args.item ||
+        props.args.item.cleartext.length < 6
+      ) {
+        return;
       }
-    }
-  };
+  
+      const secret = props.args.item.cleartext[5];
+      if (secret.length > 0) {
+        const s = secret.replace(/\s/g, "").toUpperCase();
+        try {
+          const secretBytes = new Uint8Array(base32.decode.asBytes(s));
+  
+          window.crypto.subtle
+            .importKey(
+              "raw",
+              secretBytes,
+              { name: "HMAC", hash: { name: "SHA-1" } },
+              false,
+              ["sign"]
+            )
+            .then((key) => getTOTP(key))
+            .then((six) => {
+              document
+                .querySelectorAll(".totp_digits")
+                .forEach((e) => (e.innerText = six));
+            });
+        } catch (err) {
+          document
+            .querySelectorAll(".totp_digits")
+            .forEach((e) => (e.innerText = "invalid TOTP secret"));
+        }
+      }
+    };
+  
+    */
 
   const showOTP = () => {
     if (
       edit ||
       !props.show ||
       !props.args.item ||
-      props.args.item.cleartext.length < 6
+      (totpSecret == "")
+      //      props.args.item.cleartext.length < 6
     ) {
       return;
     }
+    //    const secret = props.args.item.cleartext[5];
+    const secret = totpSecret;
 
-    const secret = props.args.item.cleartext[5];
     if (secret.length > 0) {
 
       getTOTP(secret)
@@ -461,7 +501,7 @@ function PasswordModal(props) {
   let totp = "";
 
   if (!edit) {
-    if (props.args.item && props.args.item.cleartext.length > 5) {
+    if (totpSecret != "") {
       totp = (
         <div
           className="itemModalField"
@@ -541,6 +581,16 @@ function PasswordModal(props) {
     }
   }
 
+  function onHistoryItemChange(item) {
+
+    const { _url, _secondaryUrl, _totpSecret, _password } = itemToState(item);
+    setUsername(item.cleartext[1]);
+    setPassword(_password);
+    setUrl(_url);
+    setSecondaryUrl(_secondaryUrl);
+    setTotpSecret(_totpSecret);
+  }
+
   return (
     <ItemModal
       show={props.show}
@@ -550,6 +600,7 @@ function PasswordModal(props) {
       onEdit={onEdit}
       edit={edit}
       onSubmit={onSubmit}
+      onHistoryItemChange={onHistoryItemChange}
       errorMsg={errorMsg}
       limitedView={limitedView}
       key="pwm-item-modal"

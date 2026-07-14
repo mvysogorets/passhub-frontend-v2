@@ -11,7 +11,9 @@ import CopyMoveToast from './copyMoveToast';
 
 // import IdleTimer from "react-idle-timer";
 import WsConnection from "../lib/wsConnection";
-// import * as passhubCrypto from "../lib/crypto";
+
+import * as passhubCrypto from "../lib/crypto";
+
 import {
   getFolderById,
   getApiUrl,
@@ -28,6 +30,7 @@ import { search, searchFolders } from "../lib/search";
 import SafePane from "./safePane";
 import TablePane from "./tablePane";
 import InviteToShareMailModal from './inviteToShareMailModal';
+import axios from 'axios';
 
 function MainPage(props) {
 
@@ -66,7 +69,6 @@ function MainPage(props) {
   let activeFolder = getFolderById(props.safes, props.activeFolderId);
 
   if (activeFolder === null) {
-    console.log("recommended activeFolder not found");
     activeFolder = props.safes[0];
   }
 
@@ -225,6 +227,60 @@ function MainPage(props) {
       setShowModal("ShareModal");
       setShareModalArgs({ folder: node, email: props.email });
     }
+
+    if (cmd === "convertFolderToSafe") {
+      // check admin rights
+      const newSafe = passhubCrypto.convertFolderToSafe(node);
+      const uri = "folder_ops.php";
+      const args = {
+        operation: cmd,
+        verifier: getVerifier(),
+        safe: newSafe,
+        folderID: node.id,
+      };
+      axios
+        .post(`${getApiUrl()}${uri}`, args)
+        .then((reply) => {
+          const result = reply.data;
+          if (result.status === "Ok") {
+            if (result.hasOwnProperty("items")) {
+              stats = result;
+              setPhase("safeDeleted");
+              return;
+            }
+            onClose(true);
+            return;
+          }
+
+          if (result.status === "not empty") {
+            setPhase("notEmptyFolderWarning");
+            return;
+          }
+
+          if ((result.status === "group safe") || (result.status === "group safe, siteadmin")) {
+            setPhase("initial");
+            props.onClose(result.status);
+            return;
+          }
+
+          if (result.status === "unsubscribe") {
+            setPhase("unsubscribe");
+            return;
+          }
+
+          if (result.status === "login") {
+            window.location.href = "expired.php";
+            return;
+          }
+          setErrorMsg(result.status);
+          return;
+        })
+        .catch((error) => {
+          console.log(error);
+          setErrorMsg("Server error. Please try again later");
+        });
+    }
+
     if (cmd === "Paste") {
 
       if ((typeof cmtData == "object") && ("item" in cmtData) && ("operation" in cmtData)) {
@@ -235,15 +291,39 @@ function MainPage(props) {
     }
   }
 
+  const isActiveFolderParent = (folder) => {
+    if (!("SafeID" in activeFolder)) { // activeFolder is a Safe
+      return false;
+    }
+    if (folder.id == activeFolder.SafeID) { // folder is a parent safe of active folder
+      return true;
+    }
+
+    let f = activeFolder;
+    while (f.parent != 0) {
+      if (f.parent == folder.id) {
+        return true;
+      }
+      f = getFolderById(f.parent);
+    }
+    return false;
+  }
+
+
   const handleOpenFolder = (folder) => {
     const openNodesCopy = new Set(openNodes);
     if (openNodes.has(folder.id)) {
+      // we are closing folder: if active folder is a child, make this folder active
+      if (isActiveFolderParent(folder)) {
+        props.setActiveFolder(folder);
+      }
       openNodesCopy.delete(folder.id);
     } else {
       openNodesCopy.add(folder.id);
     }
     setOpenNodes(openNodesCopy);
   };
+
 
   const openParentFolder = (folder) => {
     if (!folder.SafeID) {
@@ -256,6 +336,7 @@ function MainPage(props) {
       props.setActiveFolder(parent);
     }
   };
+
 
   // search processing    
 

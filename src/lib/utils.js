@@ -16,7 +16,7 @@ function keepTicketAlive(ttl, age) {
           console.log('updateticket error');
           console.log(error);
           clearInterval(intervalID);
-          window.location = 'logout.php';
+          logMeOut();
         })
     }
   }
@@ -31,7 +31,6 @@ function serverLogPromise(msg) {
 
   return axios.post(`${getApiUrl()}serverlog.php`, data);
 }
-
 
 function serverLog(msg) {
   const data = {
@@ -347,6 +346,10 @@ function isBankCardItem(item) {
   return item.version === 5 && item.cleartext[0] === "card";
 }
 
+function isAddressItem(item) {
+  return item.version === 5 && item.cleartext[0] === "addr";
+}
+
 function isNoteItem(item) {
   return item.note ? true : false;
 }
@@ -354,9 +357,26 @@ function isNoteItem(item) {
 
 const limits = { MAX_TITLE_LENGTH: 50, MAX_NOTE_LENGTH: 10000, MAX_USERNAME_LENGTH: 100, MAX_PASSWORD_LENGTH: 100, MAX_URL_LENGTH: 2048, MAX_TOTP_LENGTH: 2048 };
 
+const logoutChannel = new BroadcastChannel('passhub_logout');
+
+console.log('broadcast channel created');
+
+// Listen for logout events broadcast by other tabs and redirect immediately
+logoutChannel.onmessage = (event) => {
+  if (event.data === 'logout') {
+    window.location.href = 'logout.php';
+  }
+};
+
+function logMeOut() {
+  logoutChannel.postMessage('logout');
+  window.location.href = 'logout.php';
+}
+
 export {
   serverLog,
   serverLogPromise,
+  logMeOut,
   isStrongPassword,
   keepTicketAlive,
   baseName,
@@ -388,6 +408,7 @@ export {
   isPasswordItem,
   isFileItem,
   isBankCardItem,
+  isAddressItem,
   isNoteItem,
 
 };

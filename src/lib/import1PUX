@@ -1,0 +1,464 @@
+import axios from "axios";
+import JSZip from "jszip";
+import * as passhubCrypto from "../lib/crypto";
+import { getApiUrl, getVerifier } from "../lib/utils";
+
+
+let fileIDs = [];
+let currentVault = 0; // we iterate over 1password vaults and link current vault with fileID
+
+
+function getTags(item) {
+    let tags = '';
+
+    if (("tags" in item.overview) && (Array.isArray(item.overview.tags))) {
+        tags += '\n\ntags: ';
+        tags += item.overview.tags.join(' ');
+        tags += '\n';
+    }
+    return tags;
+}
+
+
+function unknownToPasshub(item) {
+    const title = ("title" in item.overview) ? item.overview.title : "unnamed";
+
+    let note = `1Password record type ${item.categoryUuid}\n\n`;
+
+    if (item.categoryUuid == "004") {
+        note = "1Password record type IDENTITY\n\n";
+    }
+    if (item.categoryUuid == "100") {
+        note = "1Password record type SOFTWARE LICENSE\n\n";
+    }
+    if (item.categoryUuid == "101") {
+        note = "1Password record type BANK ACCOUNT\n\n";
+    }
+    if (item.categoryUuid == "102") {
+        note = "1Password record type DATABASE\n\n";
+    }
+    if (item.categoryUuid == "103") {
+        note = "1Password record type DRIVER LICENSE\n\n";
+    }
+    if (item.categoryUuid == "104") {
+        note = "1Password record type OUTDOOR LICENSE\n\n";
+    }
+    if (item.categoryUuid == "105") {
+        note = "1Password record type MEMBERSHIP\n\n";
+    }
+    if (item.categoryUuid == "106") {
+        note = "1Password record type PASSPORT\n\n";
+    }
+    if (item.categoryUuid == "107") {
+        note = "1Password record type REWARDS\n\n";
+    }
+    if (item.categoryUuid == "109") {
+        note = "1Password record type WIRELESS ROUTER\n\n";
+    }
+    if (item.categoryUuid == "110") {
+        note = "1Password record type SERVER\n\n";
+    }
+    if (item.categoryUuid == "111") {
+        note = "1Password record type EMAIL\n\n";
+    }
+    if (item.categoryUuid == "112") {
+        note = "1Password record type API CREDENTIALS\n\n";
+    }
+    if (item.categoryUuid == "113") {
+        note = "1Password record type MEDICAL RECORD\n\n";
+    }
+    if (item.categoryUuid == "114") {
+        note = "1Password record type SSH KEY\n\n";
+    }
+    if (item.categoryUuid == "115") {
+        note = "1Password record type CRYPTO WALLET\n\n";
+    }
+
+    if (("sections" in item.details)
+        && Array.isArray(item.details.sections)
+        && (item.details.sections.length > 0)
+        && ("fields" in item.details.sections[0])
+        && Array.isArray(item.details.sections[0].fields)) {
+
+        for (const field of item.details.sections[0].fields) {
+            let value = [];
+            for (const v in field.value) {
+                value.push(field.value[v])
+            }
+
+            note += `${field.title}: ${value.join(' ')}\n`
+        }
+    }
+
+    note += "\n";
+
+    note += ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+
+    return { cleartext: [title, '', '', '', note], options: { note: 1 } }
+}
+
+
+function fileToPasshub(item) {
+    let title = ("title" in item.overview) ? item.overview.title : "unnamed";
+
+    if ("documentAttributes" in item.details) {
+        for (const attr in item.details.documentAttributes) {
+            if (attr == "documentId") {
+                fileIDs.push({ documentId: item.details.documentAttributes[attr], currentVault });
+            }
+            if (attr == "fileName") {
+                title = item.details.documentAttributes[attr];
+            }
+        }
+    }
+
+    let note = ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+
+    return { cleartext: [title, '', '', '', note], options: { note: 1, onePasswordDocumentId: item.details.documentAttributes.documentId } }
+}
+
+function noteToPasshub(item) {
+    const title = ("title" in item.overview) ? item.overview.title : "unnamed";
+    let note = ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+
+    return { cleartext: [title, '', '', '', note], options: { note: 1 } }
+}
+
+function loginToPasshub(item) {
+    const title = ("title" in item.overview) ? item.overview.title : "unnamed";
+    let username = '';
+    let password = '';
+    let urls = [];
+
+    try {
+        for (const field of item.details.loginFields) {
+            if (field.designation == "username") {
+                username = field.value;
+            }
+            if (field.designation == "password") {
+                password = field.value;
+            }
+        }
+        if ('urls' in item.overview) {
+            for (const url of item.overview.urls) {
+                urls.push(url.url)
+            }
+        }
+    } catch (err) {
+        console.log(err);
+    }
+
+    let note = ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+
+
+    if (("sections" in item.details)
+        && Array.isArray(item.details.sections)
+        && (item.details.sections.length > 0)
+        && ("fields" in item.details.sections[0])
+        && Array.isArray(item.details.sections[0].fields)) {
+
+        let totp;
+        for (const field of item.details.sections[0].fields) {
+            if (field?.title == "one-time password")
+                totp = field?.value?.totp;
+        }
+
+        if (totp) {
+            return { cleartext: [title, username, password, urls.join('\x01'), note, totp], options: {} }
+        }
+    }
+
+    return { cleartext: [title, username, password, urls.join('\x01'), note], options: {} }
+}
+
+
+
+function sshToPasshub(item) {
+
+    const title = ("title" in item.overview) ? item.overview.title : "unnamed";
+
+    let sshKey = {};
+
+    try {
+        for (const field of item.details.sections[0].fields) {
+            if (field.id == "private_key") {
+                sshKey = field.value.sshKey;
+            }
+        }
+    } catch (err) {
+        console.log(err);
+    }
+
+    let note = JSON.stringify(sshKey);
+    note += '\n';
+    note += ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+    return { cleartext: [title, '', '', '', note], options: { note: 1 } }
+}
+
+function cardToPasshub(item) {
+
+    const title = ("title" in item.overview) ? item.overview.title : "unnamed";
+
+    let ccNumber = '';
+    let ccName = '';
+    let ccExpMonth = '';
+    let ccExpYear = '';
+    let ccCSC = '';
+
+
+    try {
+        for (const field of item.details.sections[0].fields) {
+            if (field.id == "cardholder") {
+                ccName = field.value.string;
+            }
+            if (field.id == "ccnum") {
+                ccNumber = field.value.creditCardNumber;
+            }
+            if (field.id == "cvv") {
+                ccCSC = field.value.concealed;
+            }
+            if (field.id == "expiry") {
+                let expiry = field.value.monthYear;
+                if ((typeof expiry) == "number") {
+                    expiry = expiry.toString();
+                }
+                if ((expiry.length == 6) && (expiry.substring(0, 1) == '2')) {
+
+                    ccExpYear = expiry.substring(0, 4);
+                    ccExpMonth = expiry.substring(4, 6);
+                }
+            }
+        }
+    } catch (err) {
+        console.log(err);
+    }
+
+    let note = ("notesPlain" in item.details) ? item.details.notesPlain : '';
+    note += getTags(item);
+
+    return { cleartext: ["card", title, note, ccNumber, ccName, ccExpMonth, ccExpYear, ccCSC], options: { version: 5 } }
+
+}
+
+function toPasshub(item) {
+    let result = [];
+    if ("categoryUuid" in item) {
+
+        if (item.categoryUuid == "001") {
+            return loginToPasshub(item);
+        }
+        if (item.categoryUuid == "002") {
+            return cardToPasshub(item);
+        }
+        if (item.categoryUuid == "003") {
+            return noteToPasshub(item);
+        }
+
+        if (item.categoryUuid == "006") {
+            return fileToPasshub(item);
+        }
+
+        if (item.categoryUuid == "114") {
+            return sshToPasshub(item);
+        }
+
+        return unknownToPasshub(item);
+    }
+    return result;
+}
+
+async function onePassToPasshub(onePass, fileName) {
+    let result = {
+        name: fileName,
+        folders: [],
+        items: []
+    };
+    if (("accounts" in onePass)
+        && Array.isArray(onePass.accounts)
+        && (onePass.accounts.length > 0)
+        && ("vaults" in onePass.accounts[0])
+        && Array.isArray(onePass.accounts[0].vaults)
+    ) {
+
+        const vaults = onePass.accounts[0].vaults;
+        for (currentVault = 0; currentVault < vaults.length; currentVault++) {
+            const vault = vaults[currentVault];
+
+            const folder = {
+                folders: [],
+                items: []
+            };
+            const folderName = ("name" in vault.attrs) ? vault.attrs.name : "unnamed";
+            folder.name = folderName;
+
+            if (("items" in vault)
+                && Array.isArray(vault.items)
+            ) {
+                for (const item of vault.items) {
+                    const oitem = toPasshub(item);
+                    folder.items.push(oitem)
+                }
+            }
+            result.folders.push(folder);
+        }
+    }
+    return result;
+}
+
+function uploadImportedData(safeArray) {
+    if (safeArray.length === 0) {
+        return;
+    }
+
+    return axios
+        .post(`${getApiUrl()}impex.php`, {
+            verifier: getVerifier(),
+            import: safeArray,
+        })
+        .then((reply) => {
+            const result = reply.data;
+            //            if (result.status === "Ok") {
+            //                return;
+            //            }
+            return result;
+        })
+    /*        
+            .catch((error) => {
+                //            progress.unlock();
+    //            setErrorMsg("Server error. Please try again later");
+            });
+    */
+};
+
+
+function uploadPuxFile(zip, filename, id, binaryAesKey, safeID) {
+
+    return zip.file(filename).async("arraybuffer").then(pFileContent => {
+        const { fileInfo, cFileContent } = passhubCrypto.encryptFile(
+            pFileContent,
+            id.binaryKey
+        );
+
+        const data = new FormData();
+        data.append("vault", id.safeID);
+        data.append("verifier", getVerifier());
+
+        data.append("puxId", id.documentId);
+        data.append("fileInfo", fileInfo);
+        const ab = passhubCrypto.str2uint8(cFileContent);
+        const bl = new Blob([ab]);
+        data.append("blob", bl);
+
+        return axios
+            .post(`${getApiUrl()}upload_pux_file.php`, data, {
+                headers: {
+                    "content-type": "multipart/form-data",
+                },
+                timeout: 600000,
+            })
+            .then(response => {
+                const result = response.data;
+
+                if (result.status === "Ok") {
+                    if (result.firstID) {
+                        props.newItemInd(result.firstID);
+                    }
+                    return result;
+                }
+                if (response.status === "login") {
+                    window.location.href = "expired.php";
+                    return;
+                }
+                throw new Error(result.status);
+            })
+    })
+}
+
+async function uploadFiles(zip, filesToUpload) {
+    for (const { filename, id } of filesToUpload) {
+        await uploadPuxFile(zip, filename, id);
+    }
+    return "1PUX files uploaded";
+}
+
+async function import1PUX(zipFileContent, puxFilename, mode) {
+
+    fileIDs = [];
+    let aesKey;
+    const zip = new JSZip();
+
+    return zip.loadAsync(zipFileContent)
+        .then(() => zip.file("export.data").async("string"))
+        .then(jsonObj => {
+            const obj = JSON.parse(jsonObj);
+            return onePassToPasshub(obj, puxFilename).then(imported => {
+                const filesToUpload = []
+                zip.folder("files").forEach((relativePath, file) => {
+                    for (const fid of fileIDs) {
+                        if (file.name.includes(fid.documentId)) {
+                            filesToUpload.push({ filename: file.name, id: fid })
+                            continue;
+                        }
+                    }
+                })
+
+                if (mode === "restore") {
+                    const importedSafes = [];
+                    for (let currentVault = 0; currentVault < imported.folders.length; currentVault++) {
+                        const folder = imported.folders[currentVault];
+
+                        const { safe: importedSafe, binaryKey } = passhubCrypto.createSafeFromFolder(folder, true);
+                        importedSafes.push(importedSafe);
+                        for (const fileID of fileIDs) {
+                            if (fileID.currentVault == currentVault) {
+                                fileID.binaryKey = binaryKey;
+                            }
+                        }
+                    }
+                    return uploadImportedData(importedSafes).then(r => {
+                        for (let currentVault = 0; currentVault < imported.folders.length; currentVault++) {
+                            for (const fileID of fileIDs) {
+                                if (fileID.currentVault == currentVault) {
+                                    fileID.safeID = r.safeIDs[currentVault];
+                                }
+                            }
+
+                        }
+                        console.log(r.safeIDs);
+                        return uploadFiles(zip, filesToUpload);
+
+                    });
+                }
+
+                const { safe: importedSafe, binaryKey } = passhubCrypto.createSafeFromFolder(imported, true)
+                aesKey = binaryKey;
+                return uploadImportedData([importedSafe]).then((r) => {
+                    if ((r.status == "Ok") && (r.safeIDs.length == 1)) {
+                        const safeID = r.safeIDs[0];
+
+                        for (const file of filesToUpload) {
+                            file.id.binaryKey = binaryKey;
+                            file.id.safeID = safeID;
+                        }
+
+                        return uploadFiles(zip, filesToUpload);
+                    }
+                    return r;
+                })
+            })
+        })
+
+        .catch(err => {
+            console.log('error 280')
+            console.log(err)
+            return err;
+        });
+
+}
+
+export default import1PUX;

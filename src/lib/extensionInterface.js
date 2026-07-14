@@ -1,5 +1,5 @@
-const consoleLog = console.log;
-// const consoleLog = () => {};
+// const consoleLog = console.log;
+const consoleLog = () => { };
 
 import { getTOTP, getTOTP2 } from "./totp";
 
@@ -28,8 +28,10 @@ if (window.navigator.userAgent.match(/ Chrome\//i)) {
     extension = browser;
 }
 
-let extensionId = chromeExtensionId;
+let extensionId = null;
 
+
+// keep Passhub alive when used by extension
 let restartIdleTimer = null;
 
 function setRestartIdleTimer(fn) {
@@ -78,7 +80,9 @@ function sendCTS() {
             .then(response => {
                 consoleLog('cts response');
                 consoleLog(response);
-                return sendAdvise(response)
+                if (response) {
+                    return sendAdvise(response)
+                }
             })
             .catch(err => {
                 consoleLog('sendCTS catch');
@@ -124,30 +128,37 @@ function sendCredentials(s) {
 };
 
 async function openInExtension(item, url) {
-    if (url.length > 0) {
+    if (extension) {
+        if (url.length > 0) {
 
-        if (item.cleartext.length > 5) {
-            const secret = item.cleartext[5];
-            if (secret.length > 0) {
+            if (item.cleartext.length > 5) {
+                const secret = item.cleartext[5];
+                if (secret.length > 0) {
 
-                let six = await getTOTP(secret)
-                sendCredentials({
+                    let six = await getTOTP(secret)
+                    sendCredentials({
+                        id: 'loginRequest',
+                        username: item.cleartext[1],
+                        password: item.cleartext[2],
+                        totp: six,
+                        url,
+                    });
+
+                }
+            } else {
+                return sendCredentials({
                     id: 'loginRequest',
                     username: item.cleartext[1],
                     password: item.cleartext[2],
-                    totp: six,
                     url,
                 });
-
             }
-        } else {
-            return sendCredentials({
-                id: 'loginRequest',
-                username: item.cleartext[1],
-                password: item.cleartext[2],
-                url,
-            });
         }
+    } else {
+        if (url.search('://') == -1) {
+            url = `https://${url}`;
+        }
+        window.open(url, "_blank");
     }
 }
 
@@ -179,250 +190,76 @@ function listenToExtensionWakeup() {
             consoleLog("wrong source");
         }
     })
+
+    document.addEventListener("rts", (event) => {
+        consoleLog('got rts event, sending CTS')
+        sendCTS();
+    })
 }
-
-//------ legacy permanent connection code
-
-let extensionPort = null;
-
-let keepAliveTimer = null;
-
-function logtime() {
-    const today = new Date();
-    return today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds() + " ";
-}
-
-function keepAlive() {
-    if (extensionPort && keepAliveTimer) {
-        try {
-            extensionPort.postMessage({ id: "keepAlive" });
-            consoleLog(logtime() + ' keepAlive Sent');
-            return;
-        }
-        catch (err) {
-            consoleLog(logtime() + ' catch 51');
-
-            if (keepAliveTimer) {
-                clearInterval(keepAliveTimer);
-                keepAliveTimer = null;
-            }
-        }
-    }
-    if (keepAliveTimer) {
-        clearInterval(keepAliveTimer);
-        keepAliveTimer = null;
-    }
-}
-
-function legacyConnect(findCb) {
-    console.log('legacyConnect called');
-    if (typeof extension == 'undefined') {
-        return;
-    }
-
-    try {
-        if (extensionPort) {
-            extensionPort.disconnect();
-            extensionPort = null
-        }
-
-        extensionPort = extension.runtime.connect(extensionId);
-        consoleLog(logtime() + ' connected');
-
-
-        keepAliveTimer = setInterval(keepAlive, 25000);
-
-        //remove in manifest V3: 
-
-        setTimeout(connect, 4 * 60 * 1000, findCb);
-
-        extensionPort.onDisconnect.addListener((p) => {
-            // FF way:
-            /*if (p.error) {
-                consoleLog(`Disconnected due to an error: ${p.error.message}`);
-            }*/
-            extensionPort = null;
-
-            consoleLog(logtime() + ' disConnected');
-
-            if (extension.runtime.lastError) {  // does not exist
-                consoleLog('Connection rintime.error');
-                consoleLog(extension.runtime.lastError);
-            } else {
-                setTimeout(legacyConnect, 100, findCb);
-            }
-
-        });
-        extensionPort.onMessage.addListener(function (message, sender) {
-
-            consoleLog('received');
-            consoleLog(message);
-            sendAdvise(message)
-                .catch(err => {
-                    consoleLog('extensionport listener catch');
-                    consoleLog(err);
-                })
-
-        });
-    } catch (err) {
-        consoleLog(err)
-    }
-};
-
-//------ end legacy permanent connection code
 
 
 function connect(findCb) {  // legacy interface, use cb only
     findRecords = findCb;
 }
 
+function InitiateExtensionConnection() {
 
-function logExtensionId() {
+    if (!mobileDevice
+        && (typeof extension != 'undefined')
+        && extension.runtime
+        && extension.runtime.sendMessage) {
+
+        // extension.runtime is only defined if there are extensions with passhub as externally connectible
 
 
-    switch (extensionId) {
-        case devChromeExtensionId:
-            consoleLog("devChromeExtensionId");
-            break;
-
-        case chromeExtensionId:
-            consoleLog("chromeExtensionId");
-            break
-
-        case devEdgeExtensionId:
-            consoleLog("devEdgeExtensionId");
-            break;
-
-        case edgeExtensionId:
-            consoleLog("edgeExtensionId");
-            break
-
-        case devSafariExtensionId:
-            consoleLog("devSafariExtensionId");
-            break;
-
-        case safariExtensionId:
-            consoleLog("safariExtensionId");
-            break
-
-        default:
-            consoleLog("illegal extensionId", extensionId);
-            break;
-    }
-}
-
-function sendMessageWithRepetitions1(extensionId, message, options, ms = 300, repetitions = 5) {
-    return new Promise(function (resolve, reject) {
-        (function messageRepetition(repetition = 0) {
-            extension.runtime.sendMessage(extensionId, message, options)
-                .then(response => {
-                    if (response) {
-                        return resolve(response);
-                    } else {
-                        repetition += 1;
-                        if (repetition == repetitions) return reject();
-                        setTimeout(messageRepetition, ms, repetition);
-                    }
-                })
-                .catch(err => reject(err))
-        })()
-    })
-}
-
-function sendMessageWithRepetitions(extensionId, message, options, ms = 300, repetitions = 5) {
-    return new Promise(function (resolve, reject) {
-        const messageRepetition = (repetition = 0) => {
-            extension.runtime.sendMessage(extensionId, message, options)
-                .then(response => {
-                    if (response) {
-                        return resolve(response);
-                    } else {
-                        repetition += 1;
-                        if (repetition == repetitions) return reject();
-                        setTimeout(messageRepetition, ms, repetition);
-                    }
-                })
-                .catch(err => reject(err))
-        }
-        messageRepetition()
-    })
-}
-
-if (!mobileDevice
-    && (typeof extension != 'undefined')
-    && extension.runtime
-    && extension.runtime.sendMessage) {
-
-    let ids = []
-
-    if (window.navigator.userAgent.match(/ Chrome\//i)) {
-
-        if (window.location.href.includes("extension")) {
-            ids.push(devChromeExtensionId);
-            if (window.navigator.userAgent.match(/ Edg\//i)) {
-                ids.push(devEdgeExtensionId);
-            }
+        let extensionIds = []
+        if (window.navigator.userAgent.match(/Chrome\//i)) {
+            extensionIds = [edgeExtensionId, devEdgeExtensionId, chromeExtensionId, devChromeExtensionId]
+        } else if (window.navigator.userAgent.match(/Safari\//i)) { //safari
+            extensionIds = [safariExtensionId, devSafariExtensionId];
         } else {
-            ids.push(chromeExtensionId);
-            if (window.navigator.userAgent.match(/ Edg\//i)) {
-                ids.push(edgeExtensionId);
-            }
+            return;
         }
-    } else { // safari = true
-        if (window.location.href.includes("extension")) {
-            ids.push(devSafariExtensionId);
-        } else {
-            ids.push(safariExtensionId);
-        }
-    }
 
-    extensionId = ids.pop();
-    //extension.runtime.sendMessage(extensionId, { id: "remember me" })
-    sendMessageWithRepetitions(extensionId, { id: "remember me" })
-        .then(response => {
-            if (response) {
-                // extension found
-                // consoleLog(response);
-                logExtensionId();
-                if (response.id == "Ok") {
-                    listenToExtensionWakeup();
-                } else { // try legacy permanent connection
-                    legacyConnect();
+        const message = { id: "remember me", version: 2 };
+        const promises = [];
+
+        for (const extId of extensionIds) {
+            promises.push(extension.runtime.sendMessage(extId, message));
+        }
+        Promise.allSettled(promises).then(values => {
+            consoleLog('promiseAll returns');
+            consoleLog(values);
+
+            for (let i = 0; i < extensionIds.length; i++) {
+                if (values[i].status == "fulfilled") {
+                    extensionId = extensionIds[i];
+                    consoleLog(`extension ${extensionId} found`);
+
+                    if (values[i].value) {
+                        consoleLog('remember-me got response');
+                        consoleLog(values[i].value);
+                        listenToExtensionWakeup();
+                        return;
+                    }
+                    if (extension.runtime.lastError) {
+                        consoleLog('extension.runtime.lastError');
+                        consoleLog(extension.runtime.lastError);
+                    } else {
+                        consoleLog('no response');
+                    }
                 }
-            } else {
-                consoleLog('255 should not happen');
             }
+            consoleLog("Error: (installed) passhub.net extension not detected");
         })
-        .catch(err => {
-            consoleLog("257 no response");
-            if (!ids.length) {
-                consoleLog('catch extensionInterface 261');
-                consoleLog(err);
-                return;
-            }
-            extensionId = ids.pop();
-            //extension.runtime.sendMessage(extensionId, { id: "remember me" })
-            sendMessageWithRepetitions(extensionId, { id: "remember me" })
-                .then(response => {
-                    if (response) {
-                        // extension found
-                        consoleLog(response);
-                        logExtensionId();
-                        if (response.id == "Ok") {
-                            listenToExtensionWakeup();
-                        } else { // try legacy permanent connection
-                            legacyConnect();
-                        }
-                    } else {
-                        consoleLog('285 should not happen');
-                    }
-                }, () => { consoleLog("399 no response") })
-                .catch(err1 => {
-                    consoleLog('catch extensionInterface 282');
-                    consoleLog(err1);
-                })
-        })
-} else {
-    consoleLog("no passhub.net extension installed");
+    } else {
+        consoleLog("Passhub extension not installed");
+
+    }
 }
-export { connect, openInExtension, setRestartIdleTimer }
+
+
+InitiateExtensionConnection();
+
+export { connect, openInExtension, setRestartIdleTimer, InitiateExtensionConnection }
+

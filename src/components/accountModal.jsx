@@ -115,13 +115,13 @@ function AccountModal(props) {
 
   const showUpgrade =
     accountData.plan &&
-    (accountData.plan.toUpperCase() == "FREE");
+    (accountData.plan.toUpperCase().startsWith("FREE"));
 
   let accountType = "";
 
   if (!accountData.business) {
     if (showUpgrade) {
-      accountType = "FREE";
+      accountType = accountData.plan.toUpperCase();
     } else {
       accountType = "PREMIUM"
     }

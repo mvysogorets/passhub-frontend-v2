@@ -9,7 +9,7 @@ import App from './App'
 
 import { ErrorBoundary } from "react-error-boundary";
 
-import { serverLog, serverLogPromise } from "./lib/utils";
+import { serverLog, serverLogPromise, logMeOut } from "./lib/utils";
 
 const queryClient = new QueryClient();
 
@@ -17,7 +17,7 @@ const queryClient = new QueryClient();
 function reportAndLogout(error) {
   serverLogPromise(`error ${error.message} ${error.stack}`)
     .finally(() => {
-      window.location.href = '/logout.php';
+      logMeOut();
     })
 }
 
@@ -44,6 +44,7 @@ function fallbackRender({ error, resetErrorBoundary }) {
   );
 }
 
+/*
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary fallbackRender={fallbackRender}>
     <QueryClientProvider client={queryClient}>
@@ -51,5 +52,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </QueryClientProvider>
   </ErrorBoundary>
 )
+*/
 
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <QueryClientProvider client={queryClient}>
+    <App />
+  </QueryClientProvider>
+)
 

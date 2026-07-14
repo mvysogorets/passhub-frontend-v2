@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -15,6 +15,7 @@ import PathElement from "./pathElement";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { limits } from "../lib/utils";
+import { decodeItem } from '../lib/crypto';
 
 function ItemModal(props) {
 
@@ -40,8 +41,15 @@ function ItemModal(props) {
   const [note, setNote] = useState(_note);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const titleInput = React.createRef();
-  const textAreaRef = React.createRef();
+
+  const [showHistoryMenu, setShowHistoryMenu] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const historyMenuRef = useRef(null);
+
+  const titleInput = React.createRef();  // default focus  in Edit mode
+
+  // const textAreaRef = React.createRef();
 
   const queryClient = useQueryClient();
 
@@ -94,26 +102,41 @@ function ItemModal(props) {
 
     setNote(newValue);
     setErrorMsg(_errorMsg);
-
-
-    /* text area
-    e.target.style.height = "auto";
-    console.log(e.target.scrollHeight);
-    e.target.style.height = e.target.scrollHeight + "px";
-    */
   };
 
+  /*
   const onNoteInput = (e) => {
     setNote(e.target.innerHTML);
   };
+*/
 
-  const onShow = () => {
+
+  const onShow = () => {  // set focus when open dialog in edit mode
     props.edit && titleInput.current.focus();
   };
 
   const onClose = () => {
+    setShowHistoryMenu(false);
     props.onClose();
   };
+
+  useEffect(() => {
+    if (!showHistoryMenu) {
+      return;
+    }
+
+    const onDocumentMouseDown = (event) => {
+      if (historyMenuRef.current && !historyMenuRef.current.contains(event.target)) {
+        setShowHistoryMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onDocumentMouseDown);
+
+    return () => {
+      document.removeEventListener("mousedown", onDocumentMouseDown);
+    };
+  }, [showHistoryMenu]);
 
   const onSubmit = () => {
     const _title = title.trim();
@@ -136,33 +159,41 @@ function ItemModal(props) {
     }
   };
 
-  /*
-  const setTitle = (aTitle) => {
-    setTitle(aTitle);
-  };
-*/
+  function onHistoryItemChange(item) {
+    if (props.onHistoryItemChange) {
+      props.onHistoryItemChange(item);
+    }
+  }
 
   const onView = () => { };
+
+  const history = (props.args.item && Array.isArray(props.args.item.history))
+    ? [...props.args.item.history]
+    : [];
+
+  history.unshift(props.args.item);
+
+  /*
+if (history.length > 0) {
+  for (const item of history) {
+    item.cleartext = decodeItem(item, props.args.safe.bstringKey);
+  }
+  history.unshift(props.args.item);
+}
+
+*/
 
 
   let path = [];
   let folderName = "";
-  let lastModified = "";
 
   if (props.args.item) {
     path = props.args.item.path;
-    if (props.args.item.lastModified) {
-      lastModified = new Date(props.args.item.lastModified);
-      lastModified = lastModified.toLocaleString();
-    }
   } else if (props.args.folder) {
     path = props.args.folder.path;
   }
 
   folderName = path[path.length - 1][0];
-
-  // const pathNames = path.map((e) => e[0]);
-  // const pathString = pathNames.join(" > ");
 
   let pathString = [];
   for (let i = 0; i < path.length; i++) {
@@ -177,31 +208,54 @@ function ItemModal(props) {
     );
   }
 
-  /*
-  let pathString = path.map((p) => (
-    <PathElement
-      name={path[i][0]}
-      folderid={path[i][1]}
-      gt={path.length - i - 1}
-      onClick={(f) => this.props.onCloseSetFolder(f)}
-    ></PathElement>
-  ));
-*/
-
-  /*
-  if (this.props.args.folder) {
-    path = this.props.args.folder.path.join(" > ");
-    folderName =
-      this.props.args.folder.path[this.props.args.folder.path.length - 1];
-  }
-*/
-
-
   let modalClass = props.edit ? "edit" : "view";
 
   const maxHeight = props.isNote ? "" : "150px";
 
   let limitedView = props.limitedView ? true : false;
+
+  const formatHistoryLastModified = (value) => {
+    if (!value) {
+      return "No lastModified";
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return `${value}`;
+    }
+
+    return parsed.toLocaleString();
+  };
+
+  const onHistoryMenuItemClick = (index) => {
+    setHistoryIndex(index);
+
+    if (history[index].version == 5) {
+      setTitle(history[index].cleartext[1]);
+      setNote(history[index].cleartext[2]);
+    } else {
+      setTitle(history[index].cleartext[0]);
+      setNote(history[index].cleartext[4]);
+    }
+
+    onHistoryItemChange(history[index]);
+    setShowHistoryMenu(false);
+
+  };
+
+
+  let itemToDisplay = props.args.item;
+  if (!props.edit && (historyIndex != 0)) {
+    itemToDisplay = history[historyIndex];
+  }
+
+
+  let lastModified = "";
+
+  if (itemToDisplay?.lastModified) {
+    lastModified = new Date(itemToDisplay.lastModified);
+    lastModified = lastModified.toLocaleString();
+  }
 
   return (
     <Modal
@@ -217,18 +271,6 @@ function ItemModal(props) {
         style={{ cursor: "pointer", margin: "18px 0", color: "var(--link-color);" }}
         onClick={() => {
           props.onClose();
-          /*
-          if (this.props.searchMode) {
-            this.props.onSearchClear();
-          }
-
-          if (folder.SafeID) {
-            this.props.openParentFolder(folder);
-          } else {
-            document.querySelector("#safe_pane").classList.remove("d-none");
-            document.querySelector("#table_pane").classList.add("d-none");
-          }
-          */
         }}
       >
         <svg
@@ -249,42 +291,77 @@ function ItemModal(props) {
           {pathString}
         </div>
         {(!props.edit && !limitedView) ? (
+
           <div className="itemModalTools">
-            {/*
-                <ItemViewIcon iconId="#f-history" opacity="1" title="History" />
-                */}
-            <ItemViewIcon
-              iconId="#f-move"
-              title="Move"
-              onClick={handleMove}
-            />
-            {props.args.item && !("file" in props.args.item) && (
+            {(historyIndex == 0) && (
+              <ItemViewIcon
+                iconId="#f-move"
+                title="Move"
+                onClick={handleMove}
+              />)}
+            {props.args.item && !("file" in props.args.item) && (historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-copy"
                 title="Copy"
                 onClick={handleCopy}
               />
             )}
-            <ItemViewIcon
-              iconId="#f-trash"
-              title="Delete"
-              onClick={props.args.openDeleteItemModal}
-            />
-            <div className="itemModalEditButton" onClick={onEdit}>
-              <svg
-                width="24"
-                height="24"
-                fill="none"
-                stroke="#00BC62"
-                style={{
-                  verticalAlign: "unset",
-                  marginRight: "10px",
-                }}
-              >
-                <use href="#f-edit"></use>
-              </svg>
-              <span style={{ verticalAlign: "top" }}>Edit</span>
-            </div>
+            {(historyIndex == 0) && (
+              <ItemViewIcon
+                iconId="#f-trash"
+                title="Delete"
+                onClick={props.args.openDeleteItemModal}
+              />
+            )}
+
+            {props.args.item && ("history" in props.args.item) && (
+              <div className="historyMenuWrapper" ref={historyMenuRef}>
+                <ItemViewIcon
+                  iconId="#f-history"
+                  title="History"
+                  onClick={() => setShowHistoryMenu(!showHistoryMenu)}
+                />
+                {showHistoryMenu && (
+                  <div className="historyMenuList">
+                    {history.length > 0 ? (
+                      <>
+                        {/*
+                        <div className="historyMenuItem" key={'current'} onClick={() => onHistoryMenuItemClick(0)}>
+                          {formatHistoryLastModified(props.args.item.lastModified)}
+                        </div>
+                        */}
+                        {history.map((entry, index) => (
+                          <div className="historyMenuItem" key={`history-${index}`} onClick={() => onHistoryMenuItemClick(index)}>
+                            {formatHistoryLastModified(entry?.lastModified)}
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="historyMenuItem empty">No history</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(historyIndex == 0) && (
+
+              <div className="itemModalEditButton" onClick={onEdit}>
+                <svg
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="#00BC62"
+                  style={{
+                    verticalAlign: "unset",
+                    marginRight: "10px",
+                  }}
+                >
+                  <use href="#f-edit"></use>
+                </svg>
+                <span style={{ verticalAlign: "top" }}>Edit</span>
+              </div>
+            )}
           </div>
         ) : (
           <>

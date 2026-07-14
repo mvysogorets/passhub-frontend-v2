@@ -15,7 +15,7 @@ function DelUserModal(props) {
   const queryClient = useQueryClient();
 
   const deleteUserAction = () => {
-    axios
+    return axios
       .post(`${getApiUrl()}iam.php`, {
         verifier: getVerifier(),
         operation: "delete",

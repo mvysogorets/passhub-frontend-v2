@@ -112,21 +112,29 @@ function BankCardModal(props) {
     return null;
   }
 
-  let _ccNumber = "";
-  let _ccName = "";
-  let _ccExpMonth = "";
-  let _ccExpYear = "";
-  let _ccCSC = "";
-  let _edit = true;
+  function itemToState(item) {
 
-  if (props.args.item) {
-    _ccNumber = props.args.item.cleartext[3];
-    _ccName = props.args.item.cleartext[4];
-    _ccExpMonth = props.args.item.cleartext[5];
-    _ccExpYear = props.args.item.cleartext[6];
-    _ccCSC = props.args.item.cleartext[7];
-    _edit = false;
+    let _ccNumber = "";
+    let _ccName = "";
+    let _ccExpMonth = "";
+    let _ccExpYear = "";
+    let _ccCSC = "";
+
+    if (item) {
+      _ccNumber = item.cleartext[3];
+      _ccName = item.cleartext[4];
+      _ccExpMonth = item.cleartext[5];
+      _ccExpYear = item.cleartext[6];
+      _ccCSC = item.cleartext[7];
+    }
+
+    return { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC }
   }
+
+  let _edit = props.args.item ? false : true;
+
+
+  const { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC } = itemToState(props.args.item);
 
   const [edit, setEdit] = useState(_edit);
   const [ccNumber, setCCNumber] = useState(_ccNumber);
@@ -283,30 +291,25 @@ function BankCardModal(props) {
     setErrorMsg("");
   }
 
-  {/*
-    if (typeof this.props.args.item == "undefined") {
-      if (atRecordsLimits()) {
-        return (
-          <UpgradeModal
-            show={this.props.show}
-            accountData={getUserData()}
-            onClose={this.props.onClose}
-          ></UpgradeModal>
-        );
-      }
-    }
-  */}
-
-
   let expDate = "";
   if (ccExpMonth !== "" && ccExpYear !== "") {
     expDate = `${ccExpMonth}/${ccExpYear.slice(-2)}`;
   }
-  /*
-  const path = this.props.args.folder
-    ? this.props.args.folder.path.join(" > ")
-    : [];
-*/
+
+
+
+  function onHistoryItemChange(item) {
+
+    const { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC } = itemToState(item);
+    setCCNumber(_ccNumber);
+    setCCName(_ccName);
+
+    setCCExpMonth(_ccExpMonth);
+    setCCExpYear(_ccExpYear);
+    setCCCSC(_ccCSC);
+
+  }
+
   return (
     <ItemModal
       show={props.show}
@@ -315,6 +318,7 @@ function BankCardModal(props) {
       onCloseSetFolder={props.onCloseSetFolder}
       onEdit={onEdit}
       onSubmit={onSubmit}
+      onHistoryItemChange={onHistoryItemChange}
       edit={edit}
       errorMsg={errorMsg}
     >
@@ -508,32 +512,3 @@ function BankCardModal(props) {
 
 export default BankCardModal;
 
-
-
-/*
-    
-    axios
-      .post(`${getApiUrl()}items.php`, data)
-      .then((reply) => {
-        const result = reply.data;
-        if (result.status === "Ok") {
-          props.onClose(true);
-          return;
-        }
-        if (result.status === "login") {
-          window.location.href = "expired.php";
-          return;
-        }
-        if (result.status === "expired") {
-          window.location.href = "expired.php";
-          return;
-        }
-        setErrorMsg(result.status);
-        return;
-      })
-      .catch((err) => {
-        console.log("err ", err);
-        setErrorMsg("Server error. Please try again later");
-      });
-
-*/

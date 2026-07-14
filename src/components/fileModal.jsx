@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { saveAs } from "file-saver";
 
+import ViewFile from "./viewFile";
+
 import * as passhubCrypto from "../lib/crypto";
 import {
   getApiUrl,
@@ -29,16 +31,24 @@ import progress from "../lib/progress";
 
 function getMimeByExt(filename) {
   const mimeType = {
+    css: "text/css",
+    csv: "text/csv",
     doc: "application/msword",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     gzip: "application/gzip",
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
+    js: "text/javascript",
+    json: "application/json",
+
     gif: "image/gif",
+    md: "text/markdown",
     pdf: "application/pdf",
     png: "image/png",
     ppt: "application/vnd.ms-powerpoint",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    svg: "image/svg+xml",
+
     tif: "image/tiff",
     tiff: "image/tiff",
     txt: "text/plain",
@@ -75,17 +85,7 @@ function isFileViewable(filename) {
       }
       return true;
     }
-    if (
-      ext == "jpeg" ||
-      ext == "jpg" ||
-      ext == "png" ||
-      ext == "gif" ||
-      ext == "bmp"
-
-      /* || (ext == 'tif')
-       || (ext == 'svg')  
-      */
-    ) {
+    if (["txt", "md", "css", "js", "json", "svg", "jpeg", "jpg", "png", "gif", "bmp", "webp"].includes(ext)) {
       return true;
     }
   }
@@ -103,8 +103,10 @@ function FileModal(props) {
   // const [page, setPage] = useState("");
   const [title, setTitle] = useState(props.args.item ? props.args.item.cleartext[0] : "");
   const [edit, setEdit] = useState(props.args.item ? false : true);
+  const [sizeInBytesMode, setSizeInBytesMode] = useState(false);
 
-
+  // when viewFileMode.blob is not null, the viewFilePage is shown (this is also a flag)
+  const [viewFileMode, setViewFileMode] = useState({ blob: null, filename: null });
 
   const queryClient = useQueryClient();
 
@@ -140,8 +142,8 @@ function FileModal(props) {
     },
   })
 
-  let filename = "";
-  let blob = null;
+  // let filename = "";
+  // let blob = null;
 
   /*
   constructor(props) {
@@ -220,8 +222,15 @@ function FileModal(props) {
     };
   */
 
+  function showFile(blob, filename) {
+    setViewFileMode({ blob, filename })
+  }
+
   const onView = () => {
-    download(props.inMemoryView);
+    //    download(props.inMemoryView);
+    download(showFile);
+
+
   };
 
   const onFileInputChange = (e) => {
@@ -352,95 +361,103 @@ function FileModal(props) {
 
   let modalClass = edit ? "edit" : "view";
 
-  // const path = this.props.folder ? this.props.folder.path.join(" > ") : [];
+  const onSizeClick = () => {
+    setSizeInBytesMode(!sizeInBytesMode)
+  };
 
   return (
+
     <React.Fragment>
-      <ItemModal
-        show={props.show}
-        args={props.args}
-        onEdit={onEdit}
-        onClose={props.onClose}
-        onCloseSetFolder={props.onCloseSetFolder}
-        ref={wrapperComponent}
-        onSubmit={onSubmit}
-        edit={edit}
-        errorMsg={errorMsg}
-      >
-        {!props.args.item ? (
-          <div
-            className="itemModalField"
-            style={{
-              marginBottom: 62,
-              position: "relative",
-              background: "#E6F8EF",
-              overflow: "visible",
-            }}
-          >
+      {viewFileMode.blob && (
+        <ViewFile
+          show={viewFileMode.blob != null}
+          gotoMain={() => setViewFileMode({ blob: null, filename: "" })}
+          filename={viewFileMode.filename}
+          blob={viewFileMode.blob}
+        />
+      )}
+
+
+      {!viewFileMode.blob && (
+
+        <ItemModal
+          show={props.show}
+          args={props.args}
+          onEdit={onEdit}
+          onClose={props.onClose}
+          onCloseSetFolder={props.onCloseSetFolder}
+          ref={wrapperComponent}
+          onSubmit={onSubmit}
+          edit={edit}
+          errorMsg={errorMsg}
+        >
+          {!props.args.item ? (
             <div
+              className="itemModalField"
               style={{
-                margin: "12px auto",
-                color: "var(--link-color)",
-                display: "table",
+                marginBottom: 62,
+                position: "relative",
+                background: "#E6F8EF",
+                overflow: "visible",
               }}
             >
-              <svg width="24" height="24">
-                <use href="#f-add"></use>
+              <div
+                style={{
+                  margin: "12px auto",
+                  color: "var(--link-color)",
+                  display: "table",
+                }}
+              >
+                <svg width="24" height="24">
+                  <use href="#f-add"></use>
+                </svg>
+                <b>Upload file</b>
+                <div>or drag & drop it here</div>
+              </div>
+
+              <svg
+                width="151"
+                height="134"
+                style={{ position: "absolute", top: 16, left: 32 }}
+              >
+                <use href="#f-dragfile"></use>
               </svg>
-              <b>Upload file</b>
-              <div>or drag & drop it here</div>
-            </div>
 
-            <svg
-              width="151"
-              height="134"
-              style={{ position: "absolute", top: 16, left: 32 }}
+              <input
+                type="file"
+                id="inputFileModal"
+                onChange={onFileInputChange}
+                multiple={true}
+              ></input>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginTop: "40px",
+              }}
             >
-              <use href="#f-dragfile"></use>
-            </svg>
-
-            <input
-              type="file"
-              id="inputFileModal"
-              onChange={onFileInputChange}
-              multiple={true}
-            ></input>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              marginTop: "40px",
-            }}
-          >
-            <svg width="105" height="132" style={{ marginBottom: "32px" }}>
-              <use href="#f-file-m"></use>
-            </svg>
-            <div style={{ marginBottom: "24px" }}>
-              <span style={{ color: "var(--body-color)", opacity: 0.7 }}>
-                {humanReadableFileSize(props.args.item.file.size)}
-              </span>
+              <svg width="105" height="132" style={{ marginBottom: "32px" }}>
+                <use href="#f-file-m"></use>
+              </svg>
+              <div style={{ marginBottom: "24px", cursor: "pointer" }} onClick={onSizeClick} title={sizeInBytesMode ? 'click for human readable form' : 'click for size in bytes'}>
+                <span style={{ color: "var(--body-color)", opacity: 0.7 }}>
+                  {sizeInBytesMode ? `${props.args.item.file.size} B` : humanReadableFileSize(props.args.item.file.size)}
+                </span>
+              </div>
+              {!edit && (
+                <DownloadAndViewButtons
+                  onDownload={onDownload}
+                  view={isFileViewable(title)}
+                  onView={onView}
+                ></DownloadAndViewButtons>
+              )}
             </div>
-            {!edit && (
-              <DownloadAndViewButtons
-                onDownload={onDownload}
-                view={isFileViewable(title)}
-                onView={onView}
-              ></DownloadAndViewButtons>
-            )}
-          </div>
-        )}
-      </ItemModal>
-      {/*      
-      <ViewFile
-        show={page === "ViewFile"}
-        gotoMain={gotoMain}
-        filename={filename}
-        blob={blob}
-      />
-            */}
+          )}
+        </ItemModal>
+      )}
 
     </React.Fragment>
   );
@@ -448,72 +465,3 @@ function FileModal(props) {
 
 export default FileModal;
 
-
-
-/*
-
-
-      axios
-        .post(`${getApiUrl()}file_ops.php`, {
-          verifier: getVerifier(),
-          operation: "rename",
-          SafeID,
-          itemId: props.args.item._id,
-          newName: eData,
-        })
-        .then((reply) => {
-          progress.unlock();
-          const result = reply.data;
-          if (result.status == "Ok") {
-            props.onClose(true);
-            return;
-          }
-          if (result.status === "login") {
-            window.location.href = "login.php";
-            return;
-          }
-          if (result.status === "expired") {
-            window.location.href = "expired.php";
-            return;
-          }
-          setErrorMsg(result.status);
-          return;
-        })
-        .catch((err) => {
-          progress.unlock();
-          setErrorMsg("Server error. Please try again later");
-        });
-*/
-
-
-/*
-axios
-.post(`${getApiUrl()}create_file.php`, data, {
-  headers: {
-    "content-type": "multipart/form-data",
-  },
-  timeout: 600000,
-})
-.then((reply) => {
-  progress.unlock();
-  const result = reply.data;
-  if (result.status == "Ok") {
-    props.onClose(true);
-    return;
-  }
-  if (result.status === "login") {
-    window.location.href = "login.php";
-    return;
-  }
-  if (result.status === "expired") {
-    window.location.href = "expired.php";
-    return;
-  }
-  setErrorMsg(result.status);
-  return;
-})
-.catch((err) => {
-  progress.unlock();
-  setErrorMsg("Server error. Please try again later");
-});
-*/

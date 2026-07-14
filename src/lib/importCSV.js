@@ -183,6 +183,51 @@ function importCSV(text) {
     }
   }
 
+
+
+  // 1Password CSV, Feb 2026
+  // Title,Url,Username,Password,OTPAuth,Favorite,Archived,Tags,Notes
+
+  if ((titles.length === 9)
+    && (titles[0] === 'Title')
+    && (titles[1] === 'Url')
+    && (titles[2] === 'Username')
+    && (titles[3] === 'Password')
+    && (titles[4] === 'OTPAuth')
+    && (titles[5] === 'Favorite')
+    && (titles[6] === 'Archived')
+    && (titles[7] === 'Tags')
+    && (titles[8] === 'Notes')
+  ) {
+
+    const path = "1Password";
+
+    data.forEach((e) => {
+      if (e.length === 9) {  // skip empty lines
+
+        let notes = '';
+        if (e[7].length > 0) {
+          notes = `tags: ${e[7]}`;
+          notes += '\n\n';
+        }
+        notes += e[8];
+        const title = (e[0] !== "") ? e[0] : "unnamed";
+
+        const record = [path, title, e[2], e[3], e[1], notes];
+        if (e[4] != '') {
+          let otp = e[4];
+          const match = e[4].match(/secret=(.+?)&period/);
+          if (match && (match.length > 1)) {
+            otp = match[1];
+          }
+          record.push(otp);
+        }
+        addRecord(safes, record);
+      }
+    });
+    return safes;
+  }
+
   // Dashlane credentials.csv: username,username2,username3,title,password,note,url,category,otpSecret
   if ((titles.length === 9)
     && (titles[0] === 'username')

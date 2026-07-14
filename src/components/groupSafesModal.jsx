@@ -70,8 +70,18 @@ function GroupSafesModal(props) {
 
   function addSafeToGroup(safe) {
     console.log(safe);
+
+    let serverRole = role;
+    if (role == "can view") {
+      serverRole = "readonly";
+    }
+    if (role == "can edit") {
+      serverRole = "editor";
+    }
+
     // encrypt bstring key
-    const encrypted_key = passhubCrypto.encryptSafeKey(safe.bstringKey, group.bstringKey)
+    const encrypted_key = passhubCrypto.encryptSafeKey(safe.bstringKey, group.bstringKey);
+
     groupMutation.mutate({
       url: 'group.php',
       args: {
@@ -79,7 +89,7 @@ function GroupSafesModal(props) {
         operation: "addSafe",
         SafeID: safe.id,
         groupId: group.GroupID,
-        role,
+        role: serverRole,
         eName: safe.eName,
         version: safe.version,
         encrypted_key
@@ -87,6 +97,26 @@ function GroupSafesModal(props) {
     })
   }
 
+  const setSafeRole = (safeId, role) => {
+    let serverRole = role;
+    if (role == "can view") {
+      serverRole = "readonly";
+    }
+    if (role == "can edit") {
+      serverRole = "editor";
+    }
+
+    groupMutation.mutate({
+      url: 'group.php',
+      args: {
+        verifier: getVerifier(),
+        operation: "role",
+        groupId: group.GroupID,
+        safeId,
+        role: serverRole
+      }
+    })
+  }
   const removeSafe = (safe) => {
     groupMutation.mutate({
       url: 'group.php',
@@ -99,18 +129,7 @@ function GroupSafesModal(props) {
     })
   }
 
-  const setSafeRole = (safeId, role) => {
-    groupMutation.mutate({
-      url: 'group.php',
-      args: {
-        verifier: getVerifier(),
-        operation: "role",
-        groupId: group.GroupID,
-        safeId,
-        role
-      }
-    })
-  }
+
 
   const allSafes = getUserData().safes;
 
@@ -132,26 +151,32 @@ function GroupSafesModal(props) {
 
   let title = `Group ${group.name} safes`;
   let icon = "#f-safe";
-  /*  
-    const rightsMenuItems1 = [
-      { name: "Can Edit", details: "User can edit, delete, and add files to the Safe"},
-      { name: "Can view", details: "User can only view records and download files"},
-      { name: "Limited view", details: "User can only view records and download files, passwords are hidden"},
-    ];
-  */
 
-  const rightsMenuItems = [{ name: "Can edit", details: "User can edit, delete, and add files to the Safe", role: "can edit" },
-  { name: "Can view", details: "User can only view records and download files", role: "can view" },
-  { name: "Limited view", details: "User can only view records and download files, passwords are hidden", role: "limited view" }
+
+  let userData = getUserData()
+  let hiddenPasswordEnabled = false;
+  if (userData.business && userData.HIDDEN_PASSWORDS_ENABLED) {
+    hiddenPasswordEnabled = true;
+  }
+
+
+  const rightsMenuItems = [
+    { name: "Can edit", details: "User can edit, delete, and add files to the Safe", role: "can edit" },
+    { name: "Can view", details: "User can only view records and download files", role: "can view" },
+    { name: "Limited view", details: "User can only view records and download files, passwords are hidden", role: "limited view", hidden: !hiddenPasswordEnabled }
   ];
+
+
 
   const rightsMenu = (
     <Menu id={"rights-menu"}>
 
-      {rightsMenuItems.map((item) => (
+      {rightsMenuItems.filter((item) => !item.hidden).map((item) => (
+
         <Item onClick={(e) => {
           console.log(e);
           if (!e.props.safe) {
+
             setRole(item.role)
             return;
           }
@@ -159,6 +184,7 @@ function GroupSafesModal(props) {
             setSafeRole(e.props.safe.id, item.role);
           }
         }}
+          key={item.role}
         >
           <div>
             <div>{item.name}</div>
@@ -189,7 +215,7 @@ function GroupSafesModal(props) {
   });
 
   //   const sortedFolders = folders.toSorted(cmpByName);
-  const sortedFolders = [...sortedFolders];
+  const sortedFolders = [...folders];
   sortedFolders.sort((a, b) => a.name.localeCompare(b.name));
 
 
@@ -266,6 +292,14 @@ function GroupSafesModal(props) {
         <div style={{ maxHeight: "calc(100vh - 500px)", overflowY: "auto" }}>
           {sortedFolders.map(folder => {
             let groupRole = folder.role ? folder.role : "can view";
+            if (groupRole == "editor") {
+              groupRole = "can edit"
+            }
+            if (groupRole == "readonly") {
+              groupRole = "can view"
+            }
+
+
             return (
               <div className="group-safe-entry" >
                 <span style={{ cursor: "pointer", padding: "0 0.5em 0 1em" }} onClick={() => removeSafe(folder)} title="remove">

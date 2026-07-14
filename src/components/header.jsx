@@ -4,7 +4,7 @@ import axios from "axios";
 
 import Row from "react-bootstrap/Row";
 
-import { getApiUrl, getVerifier } from "../lib/utils";
+import { getApiUrl, getVerifier, logMeOut } from "../lib/utils";
 import { getAccountData } from "../lib/userData";
 import SearchBlock from "./searchBlock";
 
@@ -17,6 +17,7 @@ import ExportFolderModal from "./exportFolderModal";
 import EmailModal from "./emailModal";
 import VerifyEmailModal from "./verifyEmailModal";
 import ContactUsModal from "./contactUsModal";
+import BindKeyModal from "./bindKeyModal";
 import MessageModal from "./messageModal";
 import UpgradeModal from "./upgradeModal";
 
@@ -84,7 +85,15 @@ function Header(props) {
         setShowModal("AccountDropDown");
     };
 
+    //    const nmenu = ["Bind key"];
+    const nmenu = [];
+
+
     const handleMenuCommand = (cmd) => {
+        if (cmd === "Bind key") {
+            setShowModal("Bind key");
+            return;
+        }
         if (cmd === "Contact us") {
             setShowModal("Contact us");
             return;
@@ -218,6 +227,7 @@ function Header(props) {
                     show={showModal == "AccountDropDown"}
                     onClose={() => setShowModal("")}
                     onMenuCommand={handleMenuCommand}
+                    nmenu={nmenu}
                     accountData={accountData}
                 />
 
@@ -256,7 +266,7 @@ function Header(props) {
                     show={showModal === "account deleted"}
                     onClose={() => {
                         setShowModal("");
-                        window.location.href = "logout.php";
+                        logMeOut();
                     }}
                 >
                     Your account has been deleted
@@ -305,6 +315,13 @@ function Header(props) {
                         setShowModal(next ? next : "");
                     }}
                 ></ContactUsModal>
+
+                <BindKeyModal
+                    show={showModal === "Bind key"}
+                    onClose={(dummy, next) => {
+                        setShowModal(next ? next : "");
+                    }}
+                ></BindKeyModal>
 
             </>
         </>

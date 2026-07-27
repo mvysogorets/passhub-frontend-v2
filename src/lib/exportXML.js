@@ -136,6 +136,13 @@ function dump_item(item, indent) {
     xml += id2 + '<Key>exp_year</Key>';
     xml += id2 + '<Value>' + utils.escapeHtml(item.cleartext[6]) + '</Value>\r\n';
     xml += id1 + '</String>\r\n';
+
+    if (item.cleartext.length > 8) {
+      xml += id1 + '<String>\r\n';
+      xml += id2 + '<Key>zip</Key>';
+      xml += id2 + '<Value>' + utils.escapeHtml(item.cleartext[7]) + '</Value>\r\n';
+      xml += id1 + '</String>\r\n';
+    }
   }
 
   if (item.cleartext[0] == "addr") {

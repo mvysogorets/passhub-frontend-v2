@@ -62,6 +62,7 @@ function importEntry(entry) {
       (typeof result.exp_month === 'string') ? result.exp_month : '',
       (typeof result.exp_year === 'string') ? result.exp_year : '',
       (typeof result.card_code === 'string') ? result.card_code : '',
+      (typeof result.zip === 'string') ? result.zip : '',
     ];
     options.version = 5;
   } else if ('streetAddress1' in result) { // version 5 as of today

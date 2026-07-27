@@ -137,6 +137,13 @@ function AddressModal(props) {
     setErrorMsg("");
   };
 
+
+  const onCityChange = (e) => {
+    const value = e.target.value.substring(0, maxStateLength);
+    setCity(value);
+    setErrorMsg("");
+  };
+
   const onStateChange = (e) => {
     const value = e.target.value.substring(0, maxStateLength);
     setState(value);
@@ -238,6 +245,15 @@ function AddressModal(props) {
         value={streetAddress2}
         onChange={onStreetAddress2Change}
       />
+
+      <ItemModalField
+        name="City"
+        idName="city"
+        edit={edit}
+        value={city}
+        onChange={onCityChange}
+      />
+
 
       <ItemModalField
         name="State"

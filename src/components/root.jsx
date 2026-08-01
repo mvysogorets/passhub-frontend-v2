@@ -19,6 +19,7 @@ import CopyMoveToast from './copyMoveToast';
 import SurveyModal from "./surveyModal";
 import IdleModal from "./idleModal"
 import MessageModal from './messageModal';
+import PasskeySaveModal from './passkeySaveModal';
 import UserManagementPage from './userManagementPage';
 import MspPage from './mspPage';
 
@@ -127,6 +128,7 @@ function Root(props) {
   const [showToast, setShowToast] = useState("");
   const [showModal, setShowModal] = useState("");
   const [copyMoveToastOperation, setCopyMoveToastOperation] = useState("nop");
+  const [passkeySaveRequest, setPasskeySaveRequest] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -191,6 +193,35 @@ function Root(props) {
   useEffect(() => {
     accountDataMutation.mutate();
   }, [udata])
+
+  useEffect(() => {
+    const handlePasskeySaveRequest = (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "passhub-react-save-passkey-request") return;
+
+      setPasskeySaveRequest({
+        requestId: event.data.requestId,
+        passkey: event.data.passkey,
+      });
+      setShowModal("PasskeySaveModal");
+    };
+
+    window.addEventListener("message", handlePasskeySaveRequest);
+    return () => window.removeEventListener("message", handlePasskeySaveRequest);
+  }, []);
+
+  const completePasskeySave = (result) => {
+    if (!passkeySaveRequest) return;
+
+    window.postMessage({
+      type: "passhub-react-save-passkey-response",
+      requestId: passkeySaveRequest.requestId,
+      result,
+    }, window.location.origin);
+
+    setPasskeySaveRequest(null);
+    setShowModal("");
+  };
 
 
   useEffect(() => {
@@ -452,6 +483,19 @@ function Root(props) {
           setShowModal("");
         }}
       ></MessageModal>
+
+      <PasskeySaveModal
+        show={showModal === "PasskeySaveModal"}
+        passkey={passkeySaveRequest?.passkey}
+        safes={udata.safes || []}
+        currentSafeId={udata.currentSafe}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
+          completePasskeySave({ success: true });
+        }}
+        onCancel={() => completePasskeySave({ error: "Passkey save cancelled" })}
+        onError={(error) => completePasskeySave({ error })}
+      />
 
       <IdleModal
         show={showModal === "IdleModal"}

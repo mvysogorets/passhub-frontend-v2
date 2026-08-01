@@ -59,6 +59,7 @@ function PasskeySaveModal(props) {
       const result = response.data;
 
       if (result.status === "login") {
+        props.onError("PassHub session expired");
         window.location.href = "expired.php";
         return;
       }

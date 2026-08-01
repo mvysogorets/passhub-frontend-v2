@@ -24,6 +24,7 @@ import UserManagementPage from './userManagementPage';
 import MspPage from './mspPage';
 
 import progress from "../lib/progress";
+import * as passhubCrypto from "../lib/crypto";
 
 import { downloadUserData } from "../lib/userData";
 
@@ -209,6 +210,53 @@ function Root(props) {
     window.addEventListener("message", handlePasskeySaveRequest);
     return () => window.removeEventListener("message", handlePasskeySaveRequest);
   }, []);
+
+  useEffect(() => {
+    const handlePasskeyResolveRequest = (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "passhub-react-resolve-passkey-request") return;
+
+      const respond = result => window.postMessage({
+        type: "passhub-react-resolve-passkey-response",
+        requestId: event.data.requestId,
+        result,
+      }, window.location.origin);
+
+      try {
+        const normalizeId = value => value
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+        const passkeys = event.data.passkeys || [];
+        const allowedIds = (event.data.allowCredentialIds || []).map(normalizeId);
+        const record = allowedIds.length
+          ? allowedIds
+            .map(id => passkeys.find(item => normalizeId(item.passkey.credentialId) === id))
+            .find(Boolean)
+          : passkeys[0];
+
+        if (!record) throw new Error("No matching PassHub passkey found");
+
+        const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
+        if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
+
+        const encryptedPrivateKey = JSON.parse(record.passkey.privateKey);
+        const privateKey = passhubCrypto.decodeItem(encryptedPrivateKey, safe.bstringKey)?.[0];
+        if (!privateKey) throw new Error("The passkey private key could not be decrypted");
+
+        respond({
+          success: true,
+          itemId: record._id,
+          passkey: { ...record.passkey, privateKey },
+        });
+      } catch (error) {
+        respond({ error: error.message || "Passkey could not be opened" });
+      }
+    };
+
+    window.addEventListener("message", handlePasskeyResolveRequest);
+    return () => window.removeEventListener("message", handlePasskeyResolveRequest);
+  }, [udata.safes]);
 
   const completePasskeySave = (result) => {
     if (!passkeySaveRequest) return;

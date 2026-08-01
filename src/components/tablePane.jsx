@@ -105,6 +105,14 @@ function TablePane(props) {
         if (cmd === "Test passkey_ops.php") {
             testPasskeyOpsEndpoint();
         }
+        // TEMPORARY: Milestone 3 Testing - Remove after verification
+        if (cmd === "Test PasskeyGenerator") {
+            testPasskeyGenerator();
+        }
+                // TEMPORARY: Milestone 4 Testing - Remove after verification
+        if (cmd === "Test PassHubPasskeyAPI") {
+            testPassHubPasskeyAPI();
+        }
     };
 
     const showAddMenu = (e) => {
@@ -142,6 +150,21 @@ function TablePane(props) {
         },
     });
 
+    // TEMPORARY: Milestone 3 Testing - Test PasskeyGenerator loading
+    const testPasskeyGenerator = () => {
+        console.log("[Milestone 3 Test] Checking PasskeyGenerator...");
+        
+        if (typeof window.PasskeyGenerator !== 'undefined') {
+            const methods = Object.keys(window.PasskeyGenerator);
+            console.log("✅ PasskeyGenerator loaded successfully");
+            console.log("Available methods:", methods);
+            alert(`✓ PasskeyGenerator is loaded!\n\nAvailable methods:\n${methods.join('\n')}\n\nCheck console for details.`);
+        } else {
+            console.error("❌ PasskeyGenerator not found in window");
+            alert(`✗ PasskeyGenerator NOT loaded\n\nExpected: window.PasskeyGenerator\nActual: undefined\n\nCheck console for details.`);
+        }
+    };
+
     // TEMPORARY: Milestone 2 Testing - Test passkey_ops.php endpoint
     const testPasskeyOpsEndpoint = () => {
         console.log("[Milestone 2 Test] Testing passkey_ops.php endpoint...");
@@ -159,6 +182,33 @@ function TablePane(props) {
             console.error("❌ passkey_ops.php error:", err);
             alert(`✗ Error testing passkey_ops.php\n\nCheck console for details.`);
         });
+    };
+
+        // TEMPORARY: Milestone 4 Testing - Test PassHubPasskeyAPI
+    const testPassHubPasskeyAPI = async () => {
+        console.log("[Milestone 4 Test] Testing PassHubPasskeyAPI...");
+        
+        if (typeof window.PassHubPasskeyAPI === 'undefined') {
+            console.error("❌ PassHubPasskeyAPI not found");
+            alert("✗ PassHubPasskeyAPI NOT loaded\n\nCheck console for details.");
+            return;
+        }
+        
+        console.log("✅ PassHubPasskeyAPI is loaded");
+        
+        // Список методов
+        const methods = Object.keys(window.PassHubPasskeyAPI);
+        console.log("Available methods:", methods);
+        
+        // Тест: getStats
+        try {
+            const stats = await window.PassHubPasskeyAPI.getStats();
+            console.log("✅ getStats() works:", stats);
+            alert(`✓ PassHubPasskeyAPI is loaded!\n\nAvailable methods:\n${methods.join(', ')}\n\ngetStats: ${JSON.stringify(stats, null, 2)}\n\nCheck console for details.`);
+        } catch (error) {
+            console.error("❌ Error calling getStats:", error);
+            alert(`✓ PassHubPasskeyAPI is loaded!\n\nMethods: ${methods.join(', ')}\n\n⚠ getStats error (expected if no passkeys yet)\n\nCheck console for details.`);
+        }
     };
 
     const createTestPasskey = () => {

@@ -126,6 +126,23 @@ function AddDropUp(props) {
           >
             🔧 Test passkey_ops.php
           </div>
+          {/* TEMPORARY: Milestone 3 Testing - Remove after verification */}
+          <div
+            className="addModalItem"
+            onClick={(e) => handleMenuCommand(e, "Test PasskeyGenerator")}
+            style={{ color: "#6f42c1", fontSize: "13px" }}
+          >
+            ⚡ Test PasskeyGenerator
+          </div>
+                    {/* TEMPORARY: Milestone 4 Testing - Remove after verification */}
+          <div
+            className="addModalItem"
+            onClick={(e) => handleMenuCommand(e, "Test PassHubPasskeyAPI")}
+            style={{ color: "#28a745", fontSize: "13px" }}
+          >
+            🎯 Test PassHubPasskeyAPI
+          </div>
+          
           <div style={{ height: "40px" }}></div>
           <div>
             <span

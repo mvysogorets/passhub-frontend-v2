@@ -202,7 +202,7 @@ function Root(props) {
 
       setPasskeySaveRequest({
         requestId: event.data.requestId,
-        passkey: event.data.passkey,
+        options: event.data.options,
       });
       setShowModal("PasskeySaveModal");
     };
@@ -212,7 +212,7 @@ function Root(props) {
   }, []);
 
   useEffect(() => {
-    const handlePasskeyResolveRequest = (event) => {
+    const handlePasskeyResolveRequest = async (event) => {
       if (event.source !== window || event.origin !== window.location.origin) return;
       if (event.data?.type !== "passhub-react-resolve-passkey-request") return;
 
@@ -240,14 +240,21 @@ function Root(props) {
         const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
         if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
 
-        const encryptedPrivateKey = JSON.parse(record.passkey.privateKey);
-        const privateKey = passhubCrypto.decodeItem(encryptedPrivateKey, safe.bstringKey)?.[0];
-        if (!privateKey) throw new Error("The passkey private key could not be decrypted");
+        if (!window.PasskeyGenerator?.usePasskey) {
+          throw new Error("Passkey generator is not available");
+        }
+
+        const assertion = await window.PasskeyGenerator.usePasskey(
+          record.passkey,
+          window.PasskeyGenerator.base64ToArrayBuffer(event.data.challenge),
+          safe.bstringKey,
+          { origin: event.data.origin }
+        );
 
         respond({
           success: true,
           itemId: record._id,
-          passkey: { ...record.passkey, privateKey },
+          assertion,
         });
       } catch (error) {
         respond({ error: error.message || "Passkey could not be opened" });
@@ -534,12 +541,12 @@ function Root(props) {
 
       <PasskeySaveModal
         show={showModal === "PasskeySaveModal"}
-        passkey={passkeySaveRequest?.passkey}
+        options={passkeySaveRequest?.options}
         safes={udata.safes || []}
         currentSafeId={udata.currentSafe}
-        onSaved={() => {
+        onSaved={(passkey) => {
           queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
-          completePasskeySave({ success: true });
+          completePasskeySave({ success: true, passkey });
         }}
         onCancel={() => completePasskeySave({ error: "Passkey save cancelled" })}
         onError={(error) => completePasskeySave({ error })}

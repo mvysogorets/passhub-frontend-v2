@@ -26,28 +26,29 @@ function PasskeySaveModal(props) {
 
   const save = async () => {
     const safe = writableSafes.find(item => String(item.id) === safeId);
-    if (!safe || !props.passkey) return;
+    if (!safe || !props.options) return;
 
     setSaving(true);
     setError("");
 
     try {
-      const encryptedPrivateKey = passhubCrypto.encryptItem(
-        [props.passkey.passkey.privateKey],
-        safe.bstringKey,
-        {}
+      if (!window.PasskeyGenerator?.createPasskey) {
+        throw new Error("Passkey generator is not available");
+      }
+
+      const passkey = await window.PasskeyGenerator.createPasskey(
+        props.options.siteName || props.options.rpId,
+        props.options.userName,
+        props.options.rpId,
+        safe.bstringKey
       );
-      const passkeyMetadata = {
-        ...props.passkey.passkey,
-        privateKey: encryptedPrivateKey,
-      };
       const encryptedData = passhubCrypto.encryptItem(
-        props.passkey.cleartext,
+        passkey.cleartext,
         safe.bstringKey,
         {
           version: 6,
           type: "passkey",
-          passkey: passkeyMetadata,
+          passkey: passkey.passkey,
         }
       );
       const response = await axios.post(`${getApiUrl()}items.php`, {
@@ -67,7 +68,7 @@ function PasskeySaveModal(props) {
         throw new Error(result.status || "Passkey could not be saved");
       }
 
-      props.onSaved();
+      props.onSaved(passkey);
     } catch (saveError) {
       const message = saveError.message || "Server error. Please try again later";
       setError(message);
@@ -82,7 +83,7 @@ function PasskeySaveModal(props) {
       </Modal.Header>
       <Modal.Body>
         <div className="mb-3">
-          Save the passkey for <strong>{props.passkey?.passkey?.rpId}</strong> in:
+          Create and save the passkey for <strong>{props.options?.rpId}</strong> in:
         </div>
         <Form.Select
           aria-label="Safe"
@@ -102,7 +103,7 @@ function PasskeySaveModal(props) {
       <Modal.Footer>
         <Button variant="secondary" onClick={props.onCancel} disabled={saving}>Cancel</Button>
         <Button variant="primary" onClick={save} disabled={!safeId || saving}>
-          {saving ? "Saving..." : "Save"}
+          {saving ? "Creating..." : "Create and save"}
         </Button>
       </Modal.Footer>
     </Modal>

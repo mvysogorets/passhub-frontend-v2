@@ -248,51 +248,8 @@ function Root(props) {
           : passkeys;
 
         if (!candidates.length) throw new Error("No matching PassHub passkey found");
-        if (candidates.length > 1) {
-          setPasskeyResolveRequest({ eventData: event.data, candidates, respond });
-          setShowModal("PasskeySelectModal");
-          return;
-        }
-
-        await signWithPasskey(candidates[0], event.data, respond);
-      } catch (error) {
-        respond({ error: error.message || "Passkey could not be opened" });
-      }
-    };
-
-    const signWithPasskey = async (record, eventData, respond) => {
-      try {
-        const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
-        if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
-
-        if (!window.PasskeyGenerator?.usePasskey) {
-          throw new Error("Passkey generator is not available");
-        }
-
-        const assertion = await window.PasskeyGenerator.usePasskey(
-          record.passkey,
-          window.PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
-          safe.bstringKey,
-          {
-            origin: eventData.origin,
-            rpId: eventData.rpId,
-            userVerification: eventData.userVerification,
-          }
-        );
-
-        console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
-          rpId: eventData.rpId,
-          account: record.cleartext?.[2] || "",
-          credentialId: record.passkey.credentialId,
-          allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
-          userVerification: eventData.userVerification || "preferred",
-        }));
-
-        respond({
-          success: true,
-          itemId: record._id,
-          assertion,
-        });
+        setPasskeyResolveRequest({ eventData: event.data, candidates, respond });
+        setShowModal("PasskeySelectModal");
       } catch (error) {
         respond({ error: error.message || "Passkey could not be opened" });
       }

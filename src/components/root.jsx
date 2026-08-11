@@ -280,13 +280,13 @@ function Root(props) {
           }
         );
 
-        console.info("[PassHub WebAuthn] credential selected", {
+        console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
           rpId: eventData.rpId,
           account: record.cleartext?.[2] || "",
           credentialId: record.passkey.credentialId,
           allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
           userVerification: eventData.userVerification || "preferred",
-        });
+        }));
 
         respond({
           success: true,
@@ -321,13 +321,13 @@ function Root(props) {
           userVerification: eventData.userVerification,
         }
       );
-      console.info("[PassHub WebAuthn] credential selected", {
+      console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
         rpId: eventData.rpId,
         account: record.cleartext?.[2] || "",
         credentialId: record.passkey.credentialId,
         allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
         userVerification: eventData.userVerification || "preferred",
-      });
+      }));
       respond({ success: true, itemId: record._id, assertion });
     } catch (error) {
       respond({ error: error.message || "Passkey could not be opened" });

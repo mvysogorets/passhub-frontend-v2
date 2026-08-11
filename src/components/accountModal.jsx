@@ -117,6 +117,23 @@ function AccountModal(props) {
     accountData.plan &&
     (accountData.plan.toUpperCase().startsWith("FREE"));
 
+
+  let expires = null;
+
+  if ('expires' in accountData) {
+    try {
+      if (Number.isInteger(accountData.expires)) {
+        expires = new Date(accountData.expires * 1000).toLocaleDateString();
+      } else {
+        expires = new Date(accountData.expires).toLocaleDateString();
+      }
+    }
+    catch (err) {
+      expires = null;
+    }
+  }
+
+
   let accountType = "";
 
   if (!accountData.business) {
@@ -124,60 +141,35 @@ function AccountModal(props) {
       accountType = accountData.plan.toUpperCase();
     } else {
       accountType = "PREMIUM"
+      if (accountData.paymentProcessor == "apple") {
+        accountType = "apple PREMIUM"
+      }
+      if (accountData.paymentProcessor == "stripe") {
+        accountType = `PREMIUM`;
+      }
     }
   }
 
   let premiumDiv = null;
 
-  if (typeof accountData.expires == "number") {
-    let premiumComment = '';
+  if (expires) {
+    let premiumComment = null;
     if (accountData.autorenew) {
-      premiumComment = 'Subscription next auto-renewal date';
+      premiumComment = `next auto-renewal date ${expires}`;
     } else {
-      premiumComment = 'expires at';
+      premiumComment = `expires on <b>${expires}</b>`;
     }
 
-    const expiredAt = new Date(accountData.expires * 1000).toISOString().substring(0, 10);
+    if (accountData.paymentProcessor == "stripe") {
 
-    premiumDiv = (
-      <div style={{ padding: "1em 9px 9px 30px", marginBottom: 35, borderRadius: "12px", border: "1px solid var(--account-block-border)" }}>
-        <div>{premiumComment} <span style={{ marginLeft: "8px" }}><b>{expiredAt}</b></span></div>
+      premiumDiv = (
+        <>
+          {premiumComment && (<div style={{ paddingTop: 8, fontSize: "smaller" }} dangerouslySetInnerHTML={{ __html: premiumComment }}></div>)}
+          <div style={{ paddingTop: 8, fontSize: "smaller" }}><a href="/payments/billing_page.php">Payment Settings</a></div>
+        </>
+      );
 
-        {(accountData.autorenew || accountData.receipt_url) && (
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "2em;", marginTop: "2em" }}>
-            <div>
-              <div>
-                {accountData.receipt_url && (
-                  <a href={accountData.receipt_url} style={{ color: "var(--link-color)" }} target='_blank'>Your latest payment receipt</a>
-                )}
-              </div>
-              {/* 
-              <div>
-                {accountData.receipt_url && (
-                  <a href="/payments/billing.php" style={{ color: "var(--link-color)" }} target='_blank'>stripe billing page</a>
-                )}
-              </div>
-                */}
-              <div>
-                {accountData.autorenew && (
-                  <a href="#" onClick={() => {
-                    window.open("payments/update_card.php", "passhub_payment");
-                    props.onClose();
-                  }}
-                    style={{ color: "var(--link-color)" }} > Update payment card data</a>
-                )}
-              </div>
-            </div>
-
-            <div>
-              {accountData.autorenew && (
-                <button className="btn btn-outline-danger" onClick={cancelSubscription}>Cancel auto-renew</button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    }
   }
 
   let knot = knot3;
@@ -211,8 +203,6 @@ function AccountModal(props) {
     return inactivityChecked1(choice);
   }
 
-
-
   return (
     <Modal
       show={props.show}
@@ -232,6 +222,8 @@ function AccountModal(props) {
             <div style={{ marginBottom: 37 }}>
               Account type:{" "}
               <b>{accountType}</b>
+              {premiumDiv && (premiumDiv)}
+
             </div>
             {showUpgrade && (
               <Button variant="primary" onClick={onUpgrade}>
@@ -240,9 +232,6 @@ function AccountModal(props) {
             )}
           </div>
         )}
-
-
-        {!accountData.business && (accountData.plan.toUpperCase() == "PREMIUM") && premiumDiv}
 
         <div style={{ /*display: "flex",*/ display: "none", justifyContent: "space-between", flexWrap: "wrap", rowGap: 16, margin: "0 30px 37px 30px" }}>
           <div style={{ margin: "0 0 12px 0" }}>Inactivity&nbsp;timeout</div>

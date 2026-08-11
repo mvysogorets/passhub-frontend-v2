@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import Col from "react-bootstrap/Col";
 
@@ -9,11 +10,13 @@ import PasswordItem from "./passwordItem";
 import NoteItem from "./noteItem";
 import BankCardItem from "./bankCardItem";
 import FileItem from "./fileItem";
+import AddressItem from "./addressItem";
 
 import PasswordModal from "./passwordModal";
 import NoteModal from "./noteModal";
 import FileModal from "./fileModal";
 import BankCardModal from './bankCardModal';
+import AddressModal from './addressModal';
 import CreateFileModal from "./createFileModal";
 import DeleteItemModal from "./deleteItemModal";
 import FolderNameModal from "./folderNameModal";
@@ -25,7 +28,7 @@ import AddDropUp from "./addDropUp";
 import RefreshButton from './refreshButton';
 
 
-import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isNoteItem } from "../lib/utils";
+import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isAddressItem, isNoteItem } from "../lib/utils";
 
 function TablePane(props) {
 
@@ -73,6 +76,52 @@ function TablePane(props) {
 
     }, [newItemRef.current]);
 
+
+    /* item mutation, not used */
+
+    const queryClient = useQueryClient();
+
+    const itemAction = (args) => {
+        //     console.log('card Action: url', args.url,  'args', args.args);
+        return axios
+            .post(`${getApiUrl()}${args.url}`, args.args)
+            .then((response) => {
+                const result = response.data;
+
+                if (result.status === "Ok") {
+                    if (result.firstID) {
+                        setNewItemId(result.firstID);
+                        props.newItemInd(result.firstID);
+                    }
+
+                    //props.onClose(true, result.id);
+                    setEdit(false);
+                    return "Ok";
+                }
+                if (result.status === "login") {
+                    window.location.href = "expired.php";
+                    return;
+                }
+                setErrorMsg(result.status);
+                return;
+            })
+            .catch((err) => {
+                console.log(err);
+                setErrorMsg("Server error. Please try again later");
+            });
+    }
+
+    const itemMutation = useMutation({
+        mutationFn: itemAction,
+        onSuccess: data => {
+            queryClient.invalidateQueries({ queryKey: ["userData"], exact: true })
+        },
+    })
+
+    /* end item mutation */
+
+
+
     const handleAddClick = (cmd) => {
         if (cmd === "Password") {
             showItemModal("PasswordModal");
@@ -85,6 +134,9 @@ function TablePane(props) {
         }
         if (cmd === "Note") {
             showItemModal("NoteModal");
+        }
+        if (cmd === "Address") {
+            showItemModal("AddressModal");
         }
         if (cmd === "Bank Card") {
             showItemModal("BankCardModal");
@@ -222,6 +274,8 @@ function TablePane(props) {
         if (isNoteItem(item)) return item.cleartext[0];
         if (isFileItem(item)) return item.cleartext[0];
         if (isBankCardItem(item)) return item.cleartext[1];
+        if (isAddressItem(item)) return item.cleartext[1];
+        return "unknown record type";
     }
     const sortItemsFunction = (a, b) => {
 
@@ -426,6 +480,17 @@ function TablePane(props) {
                                                 }
                                             />
                                         )) ||
+                                        (isAddressItem(f) && (
+                                            <AddressItem
+                                                item={f}
+                                                key={`item${f._id}`}
+                                                searchMode={props.searchMode}
+                                                newItem={newItemRef.current == f._id}
+                                                showModal={(item) =>
+                                                    showItemModal("AddressModal", item)
+                                                }
+                                            />
+                                        )) ||
                                         (isFileItem(f) && (
                                             <FileItem
                                                 item={f}
@@ -534,7 +599,6 @@ function TablePane(props) {
                         setShowModal("");
                         props.inMemoryView(blob, filename);
                     }}
-                    {/*     onView={onViewFile} */}
                 ></FileModal>
 
                 <CreateFileModal
@@ -554,9 +618,24 @@ function TablePane(props) {
                     onCloseSetFolder={onItemModalCloseSetFolder}
                     onCopyMove={props.onCopyMove}
                     newItemInd={newItemInd}
+                    itemMutation={itemMutation}
 
                     key="nm"
                 ></NoteModal>
+
+                <AddressModal
+                    show={showModal === "AddressModal"}
+                    args={itemModalArgs}
+                    openDeleteItemModal={openDeleteItemModal}
+                    onClose={onItemModalClose}
+                    onCloseSetFolder={onItemModalCloseSetFolder}
+                    onCopyMove={props.onCopyMove}
+                    newItemInd={newItemInd}
+                    itemMutation={itemMutation}
+
+                    key="am"
+                ></AddressModal>
+
 
                 <BankCardModal
                     show={showModal === "BankCardModal"}

@@ -20,6 +20,7 @@ import { ButtonGroup } from "react-bootstrap";
 // import { findRenderedDOMComponentWithClass } from "react-dom/cjs/react-dom-test-utils.production.min";
 
 const maxCardholderNameLength = 40; // ISO IEC 7813: 2 - 26 actually including spaces
+const maxZipLength = 20;
 
 const monthNumbers = [
   "01",
@@ -119,6 +120,7 @@ function BankCardModal(props) {
     let _ccExpMonth = "";
     let _ccExpYear = "";
     let _ccCSC = "";
+    let _zip = "";
 
     if (item) {
       _ccNumber = item.cleartext[3];
@@ -126,15 +128,16 @@ function BankCardModal(props) {
       _ccExpMonth = item.cleartext[5];
       _ccExpYear = item.cleartext[6];
       _ccCSC = item.cleartext[7];
+      _zip = (item.cleartext.length > 8) ? item.cleartext[8] : "";
     }
 
-    return { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC }
+    return { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC, _zip }
   }
 
   let _edit = props.args.item ? false : true;
 
 
-  const { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC } = itemToState(props.args.item);
+  const { _ccNumber, _ccName, _ccExpMonth, _ccExpYear, _ccCSC, _zip } = itemToState(props.args.item);
 
   const [edit, setEdit] = useState(_edit);
   const [ccNumber, setCCNumber] = useState(_ccNumber);
@@ -142,9 +145,11 @@ function BankCardModal(props) {
   const [ccExpMonth, setCCExpMonth] = useState(_ccExpMonth);
   const [ccExpYear, setCCExpYear] = useState(_ccExpYear);
   const [ccCSC, setCCCSC] = useState(_ccCSC);
+  const [zip, setZip] = useState(_zip);
   const [errorMsg, setErrorMsg] = useState("");
   const [hideCSC, setHideCSC] = useState(true);
   const [hideCardNumber, setHideCardNumber] = useState(true);
+
   const [newItemId, setNewItemId] = useState(null);
 
   const queryClient = useQueryClient();
@@ -212,6 +217,7 @@ function BankCardModal(props) {
       ccExpMonth,
       ccExpYear,
       ccCSC,
+      zip
     ];
 
     const safe = props.args.safe;
@@ -281,6 +287,12 @@ function BankCardModal(props) {
     setErrorMsg("");
   };
 
+  const onZipChange = (e) => {
+    const value = e.target.value.substring(0, maxZipLength);
+    setZip(value);
+    setErrorMsg("");
+  };
+
   const onMonthSelect = (key) => {
     setCCExpMonth(key);
     setErrorMsg("");
@@ -295,8 +307,6 @@ function BankCardModal(props) {
   if (ccExpMonth !== "" && ccExpYear !== "") {
     expDate = `${ccExpMonth}/${ccExpYear.slice(-2)}`;
   }
-
-
 
   function onHistoryItemChange(item) {
 
@@ -506,6 +516,39 @@ function BankCardModal(props) {
           </div>
         </div>
       </div>
+
+      <div
+        className="itemModalField"
+        style={{ marginBottom: 32, position: "relative" }}
+        onClick={() => {
+          if (!edit) {
+            copyToClipboard(ccName);
+            document.querySelector("#zip_copied").style.display = "flex";
+            startCopiedTimer();
+          }
+        }}
+      >
+        <ItemModalFieldNav
+          copy={!edit}
+          name="Zip/postal code"
+          htmlFor="zip"
+        />
+        <div>
+          <input
+            id="zip"
+            onChange={onZipChange}
+            readOnly={!edit}
+            spellCheck={false}
+            autoComplete="off"
+            value={zip}
+          ></input>
+          <div className="copied" id="zip_copied">
+            <div>Copied &#10003;</div>
+          </div>
+        </div>
+      </div>
+
+
     </ItemModal>
   );
 }

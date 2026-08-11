@@ -231,7 +231,8 @@ function _decryptUserData1(data) {
         totalRecords,
         totalStorage,
         idleTimeout: data.idleTimeout,
-        desktop_inactivity: data.desktop_inactivity
+        desktop_inactivity: data.desktop_inactivity,
+        paymentProcessor: data.paymentProcessor,
       }
 
       data.totalRecords = totalRecords;
@@ -367,7 +368,8 @@ export {
               totalRecords,
               totalStorage,
               idleTimeout: data.idleTimeout,
-              desktop_inactivity: data.desktop_inactivity
+              desktop_inactivity: data.desktop_inactivity,
+              paymentProcessor: data.paymentProcessor
             }
  
             data.totalRecords = totalRecords;

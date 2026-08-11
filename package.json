@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.2",
+    "@zip.js/zip.js": "^2.8.33",
     "axios": "^1.12.2",
     "bootstrap": "^5.3.8",
     "file-saver": "^2.0.5",

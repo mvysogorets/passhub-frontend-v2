@@ -346,6 +346,10 @@ function isBankCardItem(item) {
   return item.version === 5 && item.cleartext[0] === "card";
 }
 
+function isAddressItem(item) {
+  return item.version === 5 && item.cleartext[0] === "addr";
+}
+
 function isNoteItem(item) {
   return item.note ? true : false;
 }
@@ -404,6 +408,7 @@ export {
   isPasswordItem,
   isFileItem,
   isBankCardItem,
+  isAddressItem,
   isNoteItem,
 
 };

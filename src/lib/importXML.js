@@ -62,9 +62,25 @@ function importEntry(entry) {
       (typeof result.exp_month === 'string') ? result.exp_month : '',
       (typeof result.exp_year === 'string') ? result.exp_year : '',
       (typeof result.card_code === 'string') ? result.card_code : '',
+      (typeof result.zip === 'string') ? result.zip : '',
+    ];
+    options.version = 5;
+  } else if ('streetAddress1' in result) { // version 5 as of today
+    cleartext = [
+      "addr",
+      (typeof result.Title === 'string') ? result.Title : 'unnamed',
+      (typeof result.Notes === 'string') ? result.Notes : '',
+      (typeof result.streetAddress1 === 'string') ? result.streetAddress1 : '',
+      (typeof result.streeAddress2 === 'string') ? result.streeAddress2 : '',
+      (typeof result.city === 'string') ? result.city : '',
+      (typeof result.state === 'string') ? result.state : '',
+      (typeof result.zip === 'string') ? result.zip : '',
+      (typeof result.country === 'string') ? result.country : '',
     ];
     options.version = 5;
   }
+
+
 
   else {
     result.URL = (typeof result.URL === 'string') ? result.URL : '';

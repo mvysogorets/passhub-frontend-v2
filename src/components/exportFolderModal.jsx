@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import ModalCross from "./modalCross";
+import CheckBox from "./checkBox";
+import Eye from "./eye";
 
 import { saveAs } from "file-saver";
 
 import exportXML from "../lib/exportXML";
 import exportCSV from "../lib/exportCSV";
+import exportZip from "../lib/exportZip";
 import { getUserData } from "../lib/userData";
 
 function ExportFolderModal(props) {
@@ -16,25 +19,52 @@ function ExportFolderModal(props) {
   }
 
   const [format, setFormat] = useState("XML");
+  const [zipProtect, setZipProtect] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleFormatChange = (e) => {
     setFormat(e)
   };
 
+  const onToggleZipProtect = () => {
+    setZipProtect(!zipProtect);
+  };
+
+  const onPasswordChange = (e) => {
+    setPassword(e.target.value);
+  };
+
   const onClose = () => {
+    setZipProtect(false);
+    setPassword("");
+    setShowPassword(false);
+    setExporting(false);
     props.onClose();
   };
 
-  const onSubmit = () => {
-    let folder = props.folder ? props.folder : getUserData().safes;
-    if (format === "XML") {
-      const blob = exportXML(folder);
-      saveAs(blob, "passhub.xml");
-    } else {
-      const blob = exportCSV(folder);
-      saveAs(blob, "passhub.csv");
+  const onSubmit = async () => {
+    if (zipProtect && password.length === 0) {
+      return;
     }
-    props.onClose();
+
+    let folder = props.folder ? props.folder : getUserData().safes;
+    const filename = format === "XML" ? "passhub.xml" : "passhub.csv";
+    const blob = format === "XML" ? exportXML(folder) : exportCSV(folder);
+
+    if (zipProtect) {
+      setExporting(true);
+      try {
+        const zipBlob = await exportZip(filename, blob, password);
+        saveAs(zipBlob, "passhub.zip");
+      } finally {
+        setExporting(false);
+      }
+    } else {
+      saveAs(blob, filename);
+    }
+    onClose();
   };
 
   const formatEntries = [
@@ -101,6 +131,26 @@ function ExportFolderModal(props) {
           ))}
         </div>
 
+        <div style={{ marginBottom: 12 }}>
+          <CheckBox checked={zipProtect} onClick={onToggleZipProtect}>
+            Save as password-protected ZIP file
+          </CheckBox>
+
+          {zipProtect && (
+            <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={onPasswordChange}
+                placeholder="ZIP password"
+                autoFocus
+                style={{ flexGrow: 1 }}
+              ></input>
+              <Eye onClick={() => setShowPassword(!showPassword)} hide={!showPassword} />
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "flex", color: "var(--warning-color)" }}>
           <div>
             <svg
@@ -120,11 +170,16 @@ function ExportFolderModal(props) {
         </div>
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="outline-secondary" onClick={onClose}>
+        <Button variant="outline-secondary" onClick={onClose} disabled={exporting}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit" onClick={onSubmit}>
-          Export
+        <Button
+          variant="primary"
+          type="submit"
+          onClick={onSubmit}
+          disabled={exporting || (zipProtect && password.length === 0)}
+        >
+          {exporting ? "Exporting..." : "Export"}
         </Button>
       </Modal.Footer>
     </Modal>

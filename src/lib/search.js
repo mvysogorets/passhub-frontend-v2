@@ -31,6 +31,28 @@ const paymentCards = () => {
   return { id: "payment", found: cards };
 };
 
+const addressRecords = () => {
+  const foundRecords = [];
+  const safes = getUserData().safes;
+  for (const safe of safes) {
+    if (safe.key) {
+      // key!= null => confirmed, better have a class
+      for (const item of safe.rawItems) {
+        if (item.version === 5 && item.cleartext[0] === "addr") {
+          const cleartext = [...item.cleartext];
+          foundRecords.push({
+            safe: safe.name,
+            title: cleartext[1],
+            address: cleartext,
+          });
+        }
+      }
+    }
+  }
+  return { id: "address", found: foundRecords };
+};
+
+
 function wildcardHostMatch(pattern, hostname) {
   const escapedPattern = pattern
     .replace(/([.+^${}()|[\]\\])/g, "\\$1")
@@ -75,6 +97,11 @@ async function advise(what) {
   if (what.id === "payment page") {
     return paymentCards();
   }
+
+  if (what.id === "address page") {
+    return addressRecords();
+  }
+
   const safes = getUserData().safes;
 
   if (what.id === "advise request" || what.id === "not a payment page") {

@@ -49,7 +49,7 @@ async function sendAdvise(message) {
     if (message.id === 'not a payment page') { // legacy
         message.id = 'advise request';
     }
-    if ((message.id === 'advise request') || (message.id === 'payment page')) {
+    if ((message.id === 'advise request') || (message.id === 'payment page') || (message.id === 'address page')) {
         if (restartIdleTimer) {
             restartIdleTimer();
         }

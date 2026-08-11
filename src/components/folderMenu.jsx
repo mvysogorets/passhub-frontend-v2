@@ -51,6 +51,16 @@ function FolderMenu(props) {
       >
         Delete
       </Item>
+      {/*      
+      <Item
+        onClick={() => {
+          handleItemClick("convertFolderToSafe");
+        }}
+      >
+        Convert to Safe
+      </Item>
+*/}
+
     </Menu>
   );
 

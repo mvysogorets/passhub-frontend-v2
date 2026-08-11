@@ -20,6 +20,7 @@ import SurveyModal from "./surveyModal";
 import IdleModal from "./idleModal"
 import MessageModal from './messageModal';
 import PasskeySaveModal from './passkeySaveModal';
+import PasskeySelectModal from './passkeySelectModal';
 import UserManagementPage from './userManagementPage';
 import MspPage from './mspPage';
 
@@ -130,6 +131,7 @@ function Root(props) {
   const [showModal, setShowModal] = useState("");
   const [copyMoveToastOperation, setCopyMoveToastOperation] = useState("nop");
   const [passkeySaveRequest, setPasskeySaveRequest] = useState(null);
+  const [passkeyResolveRequest, setPasskeyResolveRequest] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -227,16 +229,39 @@ function Root(props) {
           .replace(/\+/g, "-")
           .replace(/\//g, "_")
           .replace(/=+$/, "");
-        const passkeys = event.data.passkeys || [];
+        const findItem = (folders, id) => {
+          for (const folder of folders || []) {
+            const item = (folder.items || []).find(candidate => String(candidate._id) === String(id));
+            if (item) return item;
+            const nested = findItem(folder.folders, id);
+            if (nested) return nested;
+          }
+          return null;
+        };
+        const passkeys = (event.data.passkeys || []).map(record => {
+          const displayItem = findItem(udata.safes, record._id);
+          return displayItem ? { ...record, cleartext: displayItem.cleartext } : record;
+        });
         const allowedIds = (event.data.allowCredentialIds || []).map(normalizeId);
-        const record = allowedIds.length
-          ? allowedIds
-            .map(id => passkeys.find(item => normalizeId(item.passkey.credentialId) === id))
-            .find(Boolean)
-          : passkeys[0];
+        const candidates = allowedIds.length
+          ? passkeys.filter(item => allowedIds.includes(normalizeId(item.passkey.credentialId)))
+          : passkeys;
 
-        if (!record) throw new Error("No matching PassHub passkey found");
+        if (!candidates.length) throw new Error("No matching PassHub passkey found");
+        if (candidates.length > 1) {
+          setPasskeyResolveRequest({ eventData: event.data, candidates, respond });
+          setShowModal("PasskeySelectModal");
+          return;
+        }
 
+        await signWithPasskey(candidates[0], event.data, respond);
+      } catch (error) {
+        respond({ error: error.message || "Passkey could not be opened" });
+      }
+    };
+
+    const signWithPasskey = async (record, eventData, respond) => {
+      try {
         const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
         if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
 
@@ -246,10 +271,22 @@ function Root(props) {
 
         const assertion = await window.PasskeyGenerator.usePasskey(
           record.passkey,
-          window.PasskeyGenerator.base64ToArrayBuffer(event.data.challenge),
+          window.PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
           safe.bstringKey,
-          { origin: event.data.origin }
+          {
+            origin: eventData.origin,
+            rpId: eventData.rpId,
+            userVerification: eventData.userVerification,
+          }
         );
+
+        console.info("[PassHub WebAuthn] credential selected", {
+          rpId: eventData.rpId,
+          account: record.cleartext?.[2] || "",
+          credentialId: record.passkey.credentialId,
+          allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
+          userVerification: eventData.userVerification || "preferred",
+        });
 
         respond({
           success: true,
@@ -264,6 +301,44 @@ function Root(props) {
     window.addEventListener("message", handlePasskeyResolveRequest);
     return () => window.removeEventListener("message", handlePasskeyResolveRequest);
   }, [udata.safes]);
+
+  const completePasskeyResolve = async (record) => {
+    if (!passkeyResolveRequest) return;
+    const { eventData, respond } = passkeyResolveRequest;
+    setPasskeyResolveRequest(null);
+    setShowModal("");
+
+    try {
+      const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
+      if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
+      const assertion = await window.PasskeyGenerator.usePasskey(
+        record.passkey,
+        window.PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
+        safe.bstringKey,
+        {
+          origin: eventData.origin,
+          rpId: eventData.rpId,
+          userVerification: eventData.userVerification,
+        }
+      );
+      console.info("[PassHub WebAuthn] credential selected", {
+        rpId: eventData.rpId,
+        account: record.cleartext?.[2] || "",
+        credentialId: record.passkey.credentialId,
+        allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
+        userVerification: eventData.userVerification || "preferred",
+      });
+      respond({ success: true, itemId: record._id, assertion });
+    } catch (error) {
+      respond({ error: error.message || "Passkey could not be opened" });
+    }
+  };
+
+  const cancelPasskeyResolve = () => {
+    passkeyResolveRequest?.respond({ error: "Passkey selection cancelled" });
+    setPasskeyResolveRequest(null);
+    setShowModal("");
+  };
 
   const completePasskeySave = (result) => {
     if (!passkeySaveRequest) return;
@@ -550,6 +625,14 @@ function Root(props) {
         }}
         onCancel={() => completePasskeySave({ error: "Passkey save cancelled" })}
         onError={(error) => completePasskeySave({ error })}
+      />
+
+      <PasskeySelectModal
+        show={showModal === "PasskeySelectModal"}
+        rpId={passkeyResolveRequest?.eventData.rpId}
+        passkeys={passkeyResolveRequest?.candidates || []}
+        onSelect={completePasskeyResolve}
+        onCancel={cancelPasskeyResolve}
       />
 
       <IdleModal

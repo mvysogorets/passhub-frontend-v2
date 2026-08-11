@@ -13,6 +13,7 @@ import BankCardItem from "./bankCardItem";
 import FileItem from "./fileItem";
 import PasskeyItem from "./passkeyItem";
 import PasswordModal from "./passwordModal";
+import PasskeyModal from "./passkeyModal";
 import NoteModal from "./noteModal";
 import FileModal from "./fileModal";
 import BankCardModal from './bankCardModal';
@@ -611,6 +612,9 @@ function TablePane(props) {
                                                 key={`item${f._id}`}
                                                 searchMode={props.searchMode}
                                                 newItem={newItemRef.current == f._id}
+                                                showModal={(item) =>
+                                                    showItemModal("PasskeyModal", item)
+                                                }
                                             />
                                         ))
                                 )}
@@ -688,6 +692,13 @@ function TablePane(props) {
                     onCloseSetFolder={onItemModalCloseSetFolder}
                     key="pwm"
                 ></PasswordModal>
+
+                <PasskeyModal
+                    show={showModal === "PasskeyModal"}
+                    args={itemModalArgs}
+                    onClose={onItemModalClose}
+                    onCloseSetFolder={onItemModalCloseSetFolder}
+                ></PasskeyModal>
 
                 <FileModal
                     show={showModal === "FileModal"}

@@ -253,12 +253,14 @@ function ItemModal(props) {
             {/*
                 <ItemViewIcon iconId="#f-history" opacity="1" title="History" />
                 */}
-            <ItemViewIcon
-              iconId="#f-move"
-              title="Move"
-              onClick={handleMove}
-            />
-            {props.args.item && !("file" in props.args.item) && (
+            {props.allowMove !== false && (
+              <ItemViewIcon
+                iconId="#f-move"
+                title="Move"
+                onClick={handleMove}
+              />
+            )}
+            {props.args.item && !("file" in props.args.item) && props.allowCopy !== false && (
               <ItemViewIcon
                 iconId="#f-copy"
                 title="Copy"

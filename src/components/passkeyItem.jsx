@@ -6,13 +6,8 @@ function PasskeyItem(props) {
   const item = props.item;
 
   const showDetails = () => {
-    // First milestone: passkey is visible in the list, without modal/edit flow yet.
+    props.showModal(item);
   };
-
-  function dragStart(ev) {
-    ev.dataTransfer.setData("application/json", JSON.stringify(props.item));
-    ev.effectAllowed = "copyMove";
-  }
 
   let trClass = props.searchMode ? "search-mode" : "";
   trClass += props.newItem ? "new-item" : "";
@@ -26,19 +21,16 @@ function PasskeyItem(props) {
       <td
         className="item-name-td"
         onClick={showDetails}
-        style={{ cursor: "default" }}
+        style={{ cursor: "pointer" }}
       >
         <div
-          draggable
           id={`drag${item._id}`}
-          onDragStart={dragStart}
           style={{ overflow: "hidden", textOverflow: "ellipsis" }}
         >
           <svg
             width="24"
             height="24"
             className="itemIcon"
-            style={{ cursor: "move" }}
           >
             <use href="#i-key"></use>
           </svg>

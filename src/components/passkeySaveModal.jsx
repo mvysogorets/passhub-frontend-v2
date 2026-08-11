@@ -5,7 +5,7 @@ import Form from "react-bootstrap/Form";
 import Modal from "react-bootstrap/Modal";
 
 import * as passhubCrypto from "../lib/crypto";
-import { getApiUrl, getVerifier } from "../lib/utils";
+import { getApiUrl, getVerifier, limits } from "../lib/utils";
 
 function PasskeySaveModal(props) {
   const writableSafes = props.safes.filter(
@@ -14,12 +14,17 @@ function PasskeySaveModal(props) {
   const [safeId, setSafeId] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [recordName, setRecordName] = useState("");
 
   useEffect(() => {
     if (!props.show) return;
 
     const currentSafe = writableSafes.find(safe => String(safe.id) === String(props.currentSafeId));
     setSafeId(String(currentSafe?.id ?? writableSafes[0]?.id ?? ""));
+    setRecordName(
+      (props.options?.siteName || props.options?.rpId || "")
+        .slice(0, limits.MAX_TITLE_LENGTH)
+    );
     setError("");
     setSaving(false);
   }, [props.show, props.currentSafeId, props.safes]);
@@ -27,6 +32,12 @@ function PasskeySaveModal(props) {
   const save = async () => {
     const safe = writableSafes.find(item => String(item.id) === safeId);
     if (!safe || !props.options) return;
+
+    const name = recordName.trim();
+    if (!name) {
+      setError("Please set a name");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -37,10 +48,11 @@ function PasskeySaveModal(props) {
       }
 
       const passkey = await window.PasskeyGenerator.createPasskey(
-        props.options.siteName || props.options.rpId,
+        name,
         props.options.userName,
         props.options.rpId,
-        safe.bstringKey
+        safe.bstringKey,
+        props.options.userHandle
       );
       const encryptedData = passhubCrypto.encryptItem(
         passkey.cleartext,
@@ -85,7 +97,20 @@ function PasskeySaveModal(props) {
         <div className="mb-3">
           Create and save the passkey for <strong>{props.options?.rpId}</strong> in:
         </div>
+        <Form.Group className="mb-3" controlId="passkeyName">
+          <Form.Label>Name</Form.Label>
+          <Form.Control
+            type="text"
+            value={recordName}
+            maxLength={limits.MAX_TITLE_LENGTH}
+            onChange={event => setRecordName(event.target.value)}
+            disabled={saving}
+            autoFocus
+          />
+        </Form.Group>
+        <Form.Label htmlFor="passkeySafe">Safe</Form.Label>
         <Form.Select
+          id="passkeySafe"
           aria-label="Safe"
           value={safeId}
           onChange={event => setSafeId(event.target.value)}
@@ -102,7 +127,7 @@ function PasskeySaveModal(props) {
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={props.onCancel} disabled={saving}>Cancel</Button>
-        <Button variant="primary" onClick={save} disabled={!safeId || saving}>
+        <Button variant="primary" onClick={save} disabled={!safeId || !recordName.trim() || saving}>
           {saving ? "Creating..." : "Create and save"}
         </Button>
       </Modal.Footer>

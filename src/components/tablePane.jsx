@@ -197,11 +197,11 @@ function TablePane(props) {
         
         console.log("✅ PassHubPasskeyAPI is loaded");
         
-        // Список методов
+        // Method list.
         const methods = Object.keys(window.PassHubPasskeyAPI);
         console.log("Available methods:", methods);
         
-        // Тест: getStats
+        // Test: getStats.
         try {
             const stats = await window.PassHubPasskeyAPI.getStats();
             console.log("✅ getStats() works:", stats);

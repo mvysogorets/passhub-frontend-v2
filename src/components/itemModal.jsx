@@ -262,6 +262,7 @@ if (history.length > 0) {
       show={props.show}
       onShow={onShow}
       onHide={onClose}
+      backdrop={props.edit ? "static" : true}
       animation={false}
       centered
     >

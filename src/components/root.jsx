@@ -33,6 +33,8 @@ let firstTime = true;
 let idleM = null;
 let copyMoveOperation = "";
 
+const MAX_OUT_OF_FOCUS_TIME = 120 * 1000; // 2 minutes
+
 
 function userDataQuery() {
 
@@ -194,12 +196,17 @@ function Root(props) {
   useEffect(() => {
     const unsubscribe = focusManager.subscribe((isVisible) => {
       if (isVisible) {
-        if (lastInvisibleTime > 0 && ((new Date().getTime() - lastInvisibleTime) > 60 * 1000)) {
+        // console.log(`got focus ${new Date().toLocaleTimeString()}`);
+
+        if (lastInvisibleTime > 0 && ((new Date().getTime() - lastInvisibleTime) > MAX_OUT_OF_FOCUS_TIME)) {
           const unseen = (new Date().getTime() - lastInvisibleTime) / 1000;
           queryClient.invalidateQueries({ queryKey: ["userData"], exact: true })
         }
       } else {
         lastInvisibleTime = new Date().getTime();
+
+        // console.log(`focus lost ${new Date().toLocaleTimeString()}`);
+
       }
     })
   }, [])

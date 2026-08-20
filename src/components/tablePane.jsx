@@ -1,6 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 
 import Col from "react-bootstrap/Col";
 
@@ -28,8 +26,7 @@ import AddDropUp from "./addDropUp";
 import RefreshButton from './refreshButton';
 
 
-import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isNoteItem, isPasskeyItem, getVerifier, getApiUrl } from "../lib/utils";
-import * as passhubCrypto from "../lib/crypto";
+import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isNoteItem, isPasskeyItem } from "../lib/utils";
 
 function TablePane(props) {
 
@@ -43,8 +40,6 @@ function TablePane(props) {
     const [sortBy, setSortBy] = useState("title");
 
     const newItemRef = useRef(null);
-    const queryClient = useQueryClient();
-
     if (!props.folder) {
         return null;
     }
@@ -98,168 +93,10 @@ function TablePane(props) {
             setShowModal("FolderNameModal");
             setItemModalArgs({ parent: folder });
         }
-        // TEMPORARY: Milestone 1 Testing - Remove after verification
-        if (cmd === "Test Passkey v6") {
-            createTestPasskey();
-        }
-        // TEMPORARY: Milestone 2 Testing - Remove after verification
-        if (cmd === "Test passkey_ops.php") {
-            testPasskeyOpsEndpoint();
-        }
-        // TEMPORARY: Milestone 3 Testing - Remove after verification
-        if (cmd === "Test PasskeyGenerator") {
-            testPasskeyGenerator();
-        }
-                // TEMPORARY: Milestone 4 Testing - Remove after verification
-        if (cmd === "Test PassHubPasskeyAPI") {
-            testPassHubPasskeyAPI();
-        }
     };
 
     const showAddMenu = (e) => {
         setShowModal("addDropUp");
-    };
-
-    // TEMPORARY: Milestone 1 Testing - Remove after verification
-    // This function will become the basis for real Passkey creation UI
-    const testPasskeyAction = (args) => {
-        return axios
-            .post(`${getApiUrl()}${args.url}`, args.args)
-            .then((response) => {
-                const result = response.data;
-                if (result.status === "Ok") {
-                    alert("✓ Test Passkey v6 created successfully!\n\nNext steps:\n1. Check browser console for errors\n2. Verify no 'Error 450' alert\n3. Reload PassHub UI\n4. Verify app doesn't crash\n5. Delete test passkey after verification");
-                    return "Ok";
-                }
-                if (result.status === "login") {
-                    window.location.href = "expired.php";
-                    return;
-                }
-                alert(`Error creating test passkey: ${result.status}`);
-                return;
-            })
-            .catch((err) => {
-                console.error("Test passkey creation error:", err);
-                alert("Server error. Please try again later");
-            });
-    };
-
-    const testPasskeyMutation = useMutation({
-        mutationFn: testPasskeyAction,
-        onSuccess: data => {
-            queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
-        },
-    });
-
-    // TEMPORARY: Milestone 3 Testing - Test PasskeyGenerator loading
-    const testPasskeyGenerator = () => {
-        console.log("[Milestone 3 Test] Checking PasskeyGenerator...");
-        
-        if (typeof window.PasskeyGenerator !== 'undefined') {
-            const methods = Object.keys(window.PasskeyGenerator);
-            console.log("✅ PasskeyGenerator loaded successfully");
-            console.log("Available methods:", methods);
-            alert(`✓ PasskeyGenerator is loaded!\n\nAvailable methods:\n${methods.join('\n')}\n\nCheck console for details.`);
-        } else {
-            console.error("❌ PasskeyGenerator not found in window");
-            alert(`✗ PasskeyGenerator NOT loaded\n\nExpected: window.PasskeyGenerator\nActual: undefined\n\nCheck console for details.`);
-        }
-    };
-
-    // TEMPORARY: Milestone 2 Testing - Test passkey_ops.php endpoint
-    const testPasskeyOpsEndpoint = () => {
-        console.log("[Milestone 2 Test] Testing passkey_ops.php endpoint...");
-        
-        // Test 1: getStats operation
-        axios.post(`${getApiUrl()}passkey_ops.php`, {
-            verifier: getVerifier(),
-            operation: 'getStats'
-        })
-        .then(response => {
-            console.log("✅ passkey_ops.php getStats:", response.data);
-            alert(`✓ passkey_ops.php endpoint works!\n\nResponse: ${JSON.stringify(response.data, null, 2)}\n\nCheck console for details.`);
-        })
-        .catch(err => {
-            console.error("❌ passkey_ops.php error:", err);
-            alert(`✗ Error testing passkey_ops.php\n\nCheck console for details.`);
-        });
-    };
-
-        // TEMPORARY: Milestone 4 Testing - Test PassHubPasskeyAPI
-    const testPassHubPasskeyAPI = async () => {
-        console.log("[Milestone 4 Test] Testing PassHubPasskeyAPI...");
-        
-        if (typeof window.PassHubPasskeyAPI === 'undefined') {
-            console.error("❌ PassHubPasskeyAPI not found");
-            alert("✗ PassHubPasskeyAPI NOT loaded\n\nCheck console for details.");
-            return;
-        }
-        
-        console.log("✅ PassHubPasskeyAPI is loaded");
-        
-        // Method list.
-        const methods = Object.keys(window.PassHubPasskeyAPI);
-        console.log("Available methods:", methods);
-        
-        // Test: getStats.
-        try {
-            const stats = await window.PassHubPasskeyAPI.getStats();
-            console.log("✅ getStats() works:", stats);
-            alert(`✓ PassHubPasskeyAPI is loaded!\n\nAvailable methods:\n${methods.join(', ')}\n\ngetStats: ${JSON.stringify(stats, null, 2)}\n\nCheck console for details.`);
-        } catch (error) {
-            console.error("❌ Error calling getStats:", error);
-            alert(`✓ PassHubPasskeyAPI is loaded!\n\nMethods: ${methods.join(', ')}\n\n⚠ getStats error (expected if no passkeys yet)\n\nCheck console for details.`);
-        }
-    };
-
-    const createTestPasskey = () => {
-        const safe = folder.safe ? folder.safe : folder;
-        const aesKey = safe.bstringKey;
-        const SafeID = safe.id;
-        const folderID = folder.safe ? folder.id : 0;
-
-        // Minimal test passkey metadata (not real cryptographic keys)
-        const testPasskeyMetadata = {
-            credentialId: btoa("test-credential-16b"),
-            privateKey: "encrypted-test-private-key-placeholder",
-            publicKey: JSON.stringify({
-                kty: "EC",
-                crv: "P-256",
-                x: "test-x-coordinate-value-base64url",
-                y: "test-y-coordinate-value-base64url"
-            }),
-            userHandle: btoa("test-user-hand16b"),
-            counter: 0,
-            rpId: "example.com"
-        };
-
-        // Cleartext structure (same as real passkey items will use)
-        const cleartextArray = [
-            "Milestone 1 Test Passkey",       // title
-            "Example Site",                   // siteName  
-            "test@example.com",               // username
-            "example.com",                    // rpId
-            "Automated test for Milestone 1"  // notes
-        ];
-
-        // Use existing crypto.js encryption with v6 options
-        const options = {
-            version: 6,
-            type: "passkey",
-            passkey: testPasskeyMetadata
-        };
-
-        const eData = passhubCrypto.encryptItem(cleartextArray, aesKey, options);
-
-        const data = {
-            verifier: getVerifier(),
-            vault: SafeID,
-            folder: folderID,
-            encrypted_data: eData,
-        };
-
-        console.log("[Milestone 1 Test] Creating test passkey v6...");
-        testPasskeyMutation.mutate({ url: "items.php", args: data });
     };
 
     const onItemModalClose = (refresh = false) => {

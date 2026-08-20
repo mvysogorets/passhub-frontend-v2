@@ -14,7 +14,9 @@ const mobileDevice = isIOS || isAndroid;
 const chromeExtensionId = 'bamjbfhfacpdkenilcibkmpdahkgfejh';
 const devChromeExtensionId = 'mjcejgifimlbgmdckhdlopkjhehombpi';
 const edgeExtensionId = 'epmmbjnnghpopnhkilkoomaahpinjpkc';
-const devEdgeExtensionId = 'mpclodkiedkokmddfcooapahedfealjj';
+const devEdgeExtensionId = 'jenodcpajebkfpbdahmdbcagbikjkica';
+
+
 
 const safariExtensionId = "com.wwpass.passhub.Extension (7U4QXAP4SL)";
 const devSafariExtensionId = "com.wwpass.PassHub-net.Extension (UNSIGNED)";

@@ -354,13 +354,13 @@ function decodeItem(item, aesKey) {
   }
 
 
-  if ((item.version === 3) || (item.version === 4) || (item.version === 5)) {
+  if ((item.version === 3) || (item.version === 4) || (item.version === 5) || (item.version === 6))  {
     const cleartext = decodeItemGCM(item, aesKey);
     item.cleartext = cleartext;
     return;
     //    return decodeItemGCM(item, aesKey);
   }
-
+  
   const decipher = forge.cipher.createDecipher('AES-ECB', aesKey);
   decipher.start({ iv: forge.random.getBytesSync(16) });
 

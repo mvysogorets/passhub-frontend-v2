@@ -18,10 +18,13 @@ import CopyMoveToast from './copyMoveToast';
 import SurveyModal from "./surveyModal";
 import IdleModal from "./idleModal"
 import MessageModal from './messageModal';
+import PasskeySaveModal from './passkeySaveModal';
+import PasskeySelectModal from './passkeySelectModal';
 import UserManagementPage from './userManagementPage';
 import MspPage from './mspPage';
 
 import progress from "../lib/progress";
+import * as passhubCrypto from "../lib/crypto";
 
 import { downloadUserData } from "../lib/userData";
 
@@ -121,6 +124,8 @@ function Root(props) {
   const [showToast, setShowToast] = useState("");
   const [showModal, setShowModal] = useState("");
   const [copyMoveToastOperation, setCopyMoveToastOperation] = useState("nop");
+  const [passkeySaveRequest, setPasskeySaveRequest] = useState(null);
+  const [passkeyResolveRequest, setPasskeyResolveRequest] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -189,6 +194,119 @@ function Root(props) {
   useEffect(() => {
     accountDataMutation.mutate();
   }, [udata])
+
+  useEffect(() => {
+    const handlePasskeySaveRequest = (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "passhub-react-save-passkey-request") return;
+
+      setPasskeySaveRequest({
+        requestId: event.data.requestId,
+        options: event.data.options,
+      });
+      setShowModal("PasskeySaveModal");
+    };
+
+    window.addEventListener("message", handlePasskeySaveRequest);
+    return () => window.removeEventListener("message", handlePasskeySaveRequest);
+  }, []);
+
+  useEffect(() => {
+    const handlePasskeyResolveRequest = async (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "passhub-react-resolve-passkey-request") return;
+
+      const respond = result => window.postMessage({
+        type: "passhub-react-resolve-passkey-response",
+        requestId: event.data.requestId,
+        result,
+      }, window.location.origin);
+
+      try {
+        const normalizeId = value => value
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+        const findItem = (folders, id) => {
+          for (const folder of folders || []) {
+            const item = (folder.items || []).find(candidate => String(candidate._id) === String(id));
+            if (item) return item;
+            const nested = findItem(folder.folders, id);
+            if (nested) return nested;
+          }
+          return null;
+        };
+        const passkeys = (event.data.passkeys || []).map(record => {
+          const displayItem = findItem(udata.safes, record._id);
+          return displayItem ? { ...record, cleartext: displayItem.cleartext } : record;
+        });
+        const allowedIds = (event.data.allowCredentialIds || []).map(normalizeId);
+        const candidates = allowedIds.length
+          ? passkeys.filter(item => allowedIds.includes(normalizeId(item.passkey.credentialId)))
+          : passkeys;
+
+        if (!candidates.length) throw new Error("No matching PassHub passkey found");
+        setPasskeyResolveRequest({ eventData: event.data, candidates, respond });
+        setShowModal("PasskeySelectModal");
+      } catch (error) {
+        respond({ error: error.message || "Passkey could not be opened" });
+      }
+    };
+
+    window.addEventListener("message", handlePasskeyResolveRequest);
+    return () => window.removeEventListener("message", handlePasskeyResolveRequest);
+  }, [udata.safes]);
+
+  const completePasskeyResolve = async (record) => {
+    if (!passkeyResolveRequest) return;
+    const { eventData, respond } = passkeyResolveRequest;
+    setPasskeyResolveRequest(null);
+    setShowModal("");
+
+    try {
+      const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
+      if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
+      const assertion = await window.PasskeyGenerator.usePasskey(
+        record.passkey,
+        window.PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
+        safe.bstringKey,
+        {
+          origin: eventData.origin,
+          rpId: eventData.rpId,
+          userVerification: eventData.userVerification,
+        }
+      );
+      console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
+        rpId: eventData.rpId,
+        account: record.cleartext?.[2] || "",
+        credentialId: record.passkey.credentialId,
+        allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
+        userVerification: eventData.userVerification || "preferred",
+      }));
+      respond({ success: true, itemId: record._id, assertion });
+    } catch (error) {
+      respond({ error: error.message || "Passkey could not be opened" });
+    }
+  };
+
+  const cancelPasskeyResolve = () => {
+    passkeyResolveRequest?.respond({ error: "Passkey selection cancelled" });
+    setPasskeyResolveRequest(null);
+    setShowModal("");
+  };
+
+  const completePasskeySave = (result) => {
+    if (!passkeySaveRequest) return;
+
+    window.postMessage({
+      type: "passhub-react-save-passkey-response",
+      requestId: passkeySaveRequest.requestId,
+      result,
+    }, window.location.origin);
+
+    setPasskeySaveRequest(null);
+    setShowModal("");
+  };
 
 
   useEffect(() => {
@@ -427,6 +545,27 @@ function Root(props) {
           setShowModal("");
         }}
       ></MessageModal>
+
+      <PasskeySaveModal
+        show={showModal === "PasskeySaveModal"}
+        options={passkeySaveRequest?.options}
+        safes={udata.safes || []}
+        currentSafeId={udata.currentSafe}
+        onSaved={(passkey) => {
+          queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
+          completePasskeySave({ success: true, passkey });
+        }}
+        onCancel={() => completePasskeySave({ error: "Passkey save cancelled" })}
+        onError={(error) => completePasskeySave({ error })}
+      />
+
+      <PasskeySelectModal
+        show={showModal === "PasskeySelectModal"}
+        rpId={passkeyResolveRequest?.eventData.rpId}
+        passkeys={passkeyResolveRequest?.candidates || []}
+        onSelect={completePasskeyResolve}
+        onCancel={cancelPasskeyResolve}
+      />
 
       <IdleModal
         show={showModal === "IdleModal"}

@@ -20,6 +20,9 @@ function SafePane(props) {
   }, [props.activeFolder])
 
   const handleSelect = (folder) => {
+    if ('sharedAt' in folder) {
+      delete folder.sharedAt;
+    }
     props.setActiveFolder(folder);
   };
 

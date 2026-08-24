@@ -1,4 +1,4 @@
-// import React from "react";
+import { useState } from "react";
 
 import FolderMenu from "./folderMenu";
 
@@ -64,6 +64,11 @@ function FolderTreeNode(props) {
 
   const padding = props.padding ? props.padding : 0;
 
+  const badge = ('sharedAt' in props.node) ? (<div style={{ width: 10, height: 10, borderRadius: 5, background: "red", position: "absolute", top: 11, left: 62 }}></div>) : '';
+  // green badge: #00ba97
+
+
+
   if ("folders" in props.node && props.node.folders.length > 0) {
     const folders = props.open
       ? props.node.folders.map((s) => (
@@ -99,7 +104,8 @@ function FolderTreeNode(props) {
     );
 
     return (
-      <div>
+      <div style={{ position: "relative" }}>
+        {badge}
         <div
           className={getClass()}
           onDrop={onDrop}
@@ -136,33 +142,39 @@ function FolderTreeNode(props) {
   }
 
   return (
-    <div
-      className={getClass()}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onClick={() => props.onSelect(props.node)}
-      style={{
-        position: "relative",
-        overflow: "hidden",
-        whiteSpace: "nowrap",
-        paddingLeft: padding + 24 + "px",
-        outline: "none",
-        //        display: "flex",
-      }}
-    >
-      <div style={{ cursor: "default" }}>{icon}</div>
+    <div style={{ position: "relative" }}>
+      {badge}
+
       <div
+        className={getClass()}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onClick={() => props.onSelect(props.node)}
         style={{
-          cursor: "default",
-          flexGrow: 1,
+          position: "relative",
           overflow: "hidden",
-          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          paddingLeft: padding + 24 + "px",
+          outline: "none",
+          //        display: "flex",
         }}
       >
-        {props.node.name}
+        <div style={{ cursor: "default" }}>
+          {icon}
+        </div>
+        <div
+          style={{
+            cursor: "default",
+            flexGrow: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {props.node.name}
+        </div>
+        {menuDotsHere}
       </div>
-      {menuDotsHere}
     </div>
   );
 }

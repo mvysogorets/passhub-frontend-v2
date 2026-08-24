@@ -129,8 +129,6 @@ function GroupSafesModal(props) {
     })
   }
 
-
-
   const allSafes = getUserData().safes;
 
   const onAdd = () => {

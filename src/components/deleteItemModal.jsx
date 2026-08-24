@@ -79,6 +79,9 @@ function DeleteItemModal(props) {
   if (props.args.item.note) {
     modalTitle = "Delete Note";
   }
+  if (props.args.item.type === "passkey") {
+    modalTitle = "Delete Passkey";
+  }
 
   return (
     <Modal

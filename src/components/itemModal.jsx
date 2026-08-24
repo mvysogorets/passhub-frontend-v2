@@ -293,19 +293,26 @@ if (history.length > 0) {
         {(!props.edit && !limitedView) ? (
 
           <div className="itemModalTools">
-            {(historyIndex == 0) && (
+            {/*
+                <ItemViewIcon iconId="#f-history" opacity="1" title="History" />
+                */}
+            {historyIndex == 0 && props.allowMove !== false && (
               <ItemViewIcon
                 iconId="#f-move"
                 title="Move"
                 onClick={handleMove}
-              />)}
-            {props.args.item && !("file" in props.args.item) && (historyIndex == 0) && (
-              <ItemViewIcon
-                iconId="#f-copy"
-                title="Copy"
-                onClick={handleCopy}
               />
             )}
+            {props.args.item &&
+              !("file" in props.args.item) &&
+              historyIndex == 0 &&
+              props.allowCopy !== false && (
+                <ItemViewIcon
+                  iconId="#f-copy"
+                  title="Copy"
+                  onClick={handleCopy}
+                />
+              )}
             {(historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-trash"

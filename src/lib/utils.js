@@ -335,7 +335,11 @@ function isPasteEnabled(status) {
 */
 
 function isPasswordItem(item) {
-  return !item.note && !item.file && item.version !== 5;
+  return !item.note && !item.file && item.version !== 5 && item.version !== 6;
+}
+
+function isPasskeyItem(item) {
+  return item.version === 6 && item.type === "passkey";
 }
 
 function isFileItem(item) {
@@ -409,6 +413,7 @@ export {
   isFileItem,
   isBankCardItem,
   isAddressItem,
+  isPasskeyItem,
   isNoteItem,
 
 };

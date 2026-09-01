@@ -25,6 +25,8 @@ import MspPage from './mspPage';
 
 import progress from "../lib/progress";
 import * as passhubCrypto from "../lib/crypto";
+import PasskeyGenerator from "../lib/passkey-generator.js";
+import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
 
 import { downloadUserData } from "../lib/userData";
 
@@ -35,6 +37,47 @@ import { keepTicketAlive, enablePaste, serverLog, getApiUrl, getVerifier, getFol
 let firstTime = true;
 let idleM = null;
 let copyMoveOperation = "";
+
+const normalizeCredentialId = value => String(value || "")
+  .replace(/\+/g, "-")
+  .replace(/\//g, "_")
+  .replace(/=+$/, "");
+
+function getDirectPasskeyCandidates(safes, rpId, allowCredentialIds = []) {
+  const allowedIds = allowCredentialIds.map(normalizeCredentialId);
+  const candidates = [];
+
+  for (const safe of safes || []) {
+    if (!isDirectWritableSafe(safe)) continue;
+
+    for (const item of safe.rawItems || safe.items || []) {
+      if (item.version !== 6 || item.type !== "passkey" || !item.passkey) continue;
+      if (item.passkey.rpId !== rpId) continue;
+      if (
+        !Number.isSafeInteger(item.passkey.counter)
+        || item.passkey.counter < 0
+        || item.passkey.counter >= 0xffffffff
+      ) continue;
+      if (
+        allowedIds.length
+        && !allowedIds.includes(normalizeCredentialId(item.passkey.credentialId))
+      ) continue;
+      candidates.push(item);
+    }
+  }
+
+  return candidates;
+}
+
+function findDirectPasskeyById(safes, itemId) {
+  for (const safe of safes || []) {
+    if (!isDirectWritableSafe(safe)) continue;
+    const item = (safe.rawItems || safe.items || [])
+      .find(candidate => String(candidate._id) === String(itemId));
+    if (item?.type === "passkey" && item.passkey) return item;
+  }
+  return null;
+}
 
 
 function userDataQuery() {
@@ -223,27 +266,11 @@ function Root(props) {
       }, window.location.origin);
 
       try {
-        const normalizeId = value => value
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
-        const findItem = (folders, id) => {
-          for (const folder of folders || []) {
-            const item = (folder.items || []).find(candidate => String(candidate._id) === String(id));
-            if (item) return item;
-            const nested = findItem(folder.folders, id);
-            if (nested) return nested;
-          }
-          return null;
-        };
-        const passkeys = (event.data.passkeys || []).map(record => {
-          const displayItem = findItem(udata.safes, record._id);
-          return displayItem ? { ...record, cleartext: displayItem.cleartext } : record;
-        });
-        const allowedIds = (event.data.allowCredentialIds || []).map(normalizeId);
-        const candidates = allowedIds.length
-          ? passkeys.filter(item => allowedIds.includes(normalizeId(item.passkey.credentialId)))
-          : passkeys;
+        const candidates = getDirectPasskeyCandidates(
+          udata.safes,
+          event.data.rpId,
+          event.data.allowCredentialIds
+        );
 
         if (!candidates.length) throw new Error("No matching PassHub passkey found");
         setPasskeyResolveRequest({ eventData: event.data, candidates, respond });
@@ -264,26 +291,81 @@ function Root(props) {
     setShowModal("");
 
     try {
-      const safe = (udata.safes || []).find(item => String(item.id) === String(record.SafeID));
-      if (!safe?.bstringKey) throw new Error("The passkey safe is not available");
-      const assertion = await window.PasskeyGenerator.usePasskey(
-        record.passkey,
-        window.PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
-        safe.bstringKey,
-        {
-          origin: eventData.origin,
-          rpId: eventData.rpId,
-          userVerification: eventData.userVerification,
+      let currentData = udata;
+      let currentRecord = record;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const safe = (currentData.safes || [])
+          .find(item => String(item.id) === String(currentRecord.SafeID));
+        if (!isDirectWritableSafe(safe)) {
+          throw new Error("The passkey safe is not available for authentication");
         }
-      );
-      console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
-        rpId: eventData.rpId,
-        account: record.cleartext?.[2] || "",
-        credentialId: record.passkey.credentialId,
-        allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
-        userVerification: eventData.userVerification || "preferred",
-      }));
-      respond({ success: true, itemId: record._id, assertion });
+        if (currentRecord.passkey.rpId !== eventData.rpId) {
+          throw new Error("The passkey relying party does not match the request");
+        }
+
+        const assertion = await PasskeyGenerator.usePasskey(
+          currentRecord.passkey,
+          PasskeyGenerator.base64ToArrayBuffer(eventData.challenge),
+          safe.bstringKey,
+          {
+            origin: eventData.origin,
+            rpId: eventData.rpId,
+            userVerification: eventData.userVerification,
+          }
+        );
+        const nextPasskey = {
+          ...currentRecord.passkey,
+          counter: currentRecord.passkey.counter + 1,
+        };
+        const encryptedData = passhubCrypto.encryptItem(
+          encodePasskeyCleartext(currentRecord.cleartext, nextPasskey),
+          safe.bstringKey,
+          { version: 6 }
+        );
+        const response = await axios.post(`${getApiUrl()}items.php`, {
+          verifier: getVerifier(),
+          vault: safe.id,
+          folder: currentRecord.folder || 0,
+          entryID: currentRecord._id,
+          expectedRevision: currentRecord.revision || 0,
+          encrypted_data: encryptedData,
+        });
+        const result = response.data;
+
+        if (result.status === "login") {
+          window.location.href = "expired.php";
+          throw new Error("PassHub session expired");
+        }
+        if (result.status === "Ok") {
+          console.info("[PassHub WebAuthn] credential selected", JSON.stringify({
+            rpId: eventData.rpId,
+            account: currentRecord.cleartext?.[2] || "",
+            credentialId: currentRecord.passkey.credentialId,
+            allowCredentialsCount: eventData.allowCredentialIds?.length || 0,
+            userVerification: eventData.userVerification || "preferred",
+          }));
+          queryClient.invalidateQueries({ queryKey: ["userData"], exact: true });
+          respond({ success: true, assertion });
+          return;
+        }
+        if (result.status !== "Conflict") {
+          throw new Error(result.status || "Passkey counter could not be saved");
+        }
+
+        currentData = await downloadUserData();
+        setUData(currentData);
+        queryClient.setQueryData(["userData"], currentData);
+        currentRecord = findDirectPasskeyById(currentData.safes, record._id);
+        if (!currentRecord) {
+          throw new Error("The passkey is no longer available");
+        }
+        if (currentRecord.passkey.credentialId !== record.passkey.credentialId) {
+          throw new Error("The passkey credential changed during authentication");
+        }
+      }
+
+      throw new Error("The passkey was changed by another authentication request");
     } catch (error) {
       respond({ error: error.message || "Passkey could not be opened" });
     }

@@ -5,12 +5,12 @@ import Form from "react-bootstrap/Form";
 import Modal from "react-bootstrap/Modal";
 
 import * as passhubCrypto from "../lib/crypto";
+import PasskeyGenerator from "../lib/passkey-generator.js";
+import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
 import { getApiUrl, getVerifier, limits } from "../lib/utils";
 
 function PasskeySaveModal(props) {
-  const writableSafes = props.safes.filter(
-    safe => safe.bstringKey && safe.user_role !== "limited view"
-  );
+  const writableSafes = props.safes.filter(isDirectWritableSafe);
   const [safeId, setSafeId] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -43,11 +43,11 @@ function PasskeySaveModal(props) {
     setError("");
 
     try {
-      if (!window.PasskeyGenerator?.createPasskey) {
+      if (!PasskeyGenerator?.createPasskey) {
         throw new Error("Passkey generator is not available");
       }
 
-      const passkey = await window.PasskeyGenerator.createPasskey(
+      const passkey = await PasskeyGenerator.createPasskey(
         name,
         props.options.userName,
         props.options.rpId,
@@ -55,12 +55,10 @@ function PasskeySaveModal(props) {
         props.options.userHandle
       );
       const encryptedData = passhubCrypto.encryptItem(
-        passkey.cleartext,
+        encodePasskeyCleartext(passkey.cleartext, passkey.passkey),
         safe.bstringKey,
         {
           version: 6,
-          type: "passkey",
-          passkey: passkey.passkey,
         }
       );
       const response = await axios.post(`${getApiUrl()}items.php`, {

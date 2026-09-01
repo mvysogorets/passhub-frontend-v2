@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 import * as passhubCrypto from "../lib/crypto";
+import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
 import { getApiUrl, getVerifier } from "../lib/utils";
 import ItemModal from "./itemModal";
 import ItemModalFieldNav from "./itemModalFieldNav";
@@ -43,17 +44,18 @@ function PasskeyModal(props) {
       item.cleartext?.[3] || item.passkey?.rpId || "",
       note,
     ];
-    const encryptedData = passhubCrypto.encryptItem(cleartext, safe.bstringKey, {
-      version: 6,
-      type: "passkey",
-      passkey: item.passkey,
-    });
+    const encryptedData = passhubCrypto.encryptItem(
+      encodePasskeyCleartext(cleartext, item.passkey),
+      safe.bstringKey,
+      { version: 6 }
+    );
 
     updateMutation.mutate({
       verifier: getVerifier(),
       vault: safe.id,
       folder: item.folder || 0,
       entryID: item._id,
+      expectedRevision: item.revision || 0,
       encrypted_data: encryptedData,
     });
   };
@@ -75,7 +77,7 @@ function PasskeyModal(props) {
       onEdit={() => setEdit(true)}
       edit={edit}
       errorMsg={errorMsg}
-      limitedView={safe.user_role === "limited view"}
+      limitedView={!isDirectWritableSafe(safe)}
       allowCopy={false}
       allowMove={false}
     >

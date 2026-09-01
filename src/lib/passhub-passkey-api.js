@@ -260,6 +260,7 @@ import PasskeyGenerator from './passkey-generator.js';
         }
     });
 
+    document.documentElement.dataset.passhubPasskeyApi = 'ready';
     console.log('Extension bridge listener registered');
 
 })();

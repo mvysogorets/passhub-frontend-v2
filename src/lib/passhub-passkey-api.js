@@ -30,6 +30,7 @@ import PasskeyGenerator from './passkey-generator.js';
  * @param {string} options.userName - User name
  * @param {string} options.userDisplayName - Display name
  * @param {string} options.siteName - Optional site name
+ * @param {number} options.algorithm - Negotiated COSE signature algorithm
  * @param {Function} options.encryptFn - Optional encryption function
  * @returns {Promise<Object>} Created passkey
  */
@@ -201,13 +202,17 @@ import PasskeyGenerator from './passkey-generator.js';
             if (id === 'passkey-create-request') {
                 // Create a new passkey.
                 console.log('Creating passkey for:', data.rpId);
+                const algorithm = PasskeyGenerator.selectCredentialAlgorithm(
+                    data.pubKeyCredParams
+                );
 
                 const passkeyData = await PassHubPasskeyAPI.createPasskey({
                     rpId: data.rpId,
                     userName: data.userName,
                     userDisplayName: data.userDisplayName,
                     userHandle: data.userHandle,
-                    siteName: data.rpName || data.rpId
+                    siteName: data.rpName || data.rpId,
+                    algorithm
                 });
 
                 console.log('Passkey created, converting to WebAuthn format');
@@ -254,7 +259,8 @@ import PasskeyGenerator from './passkey-generator.js';
                 type: 'passhub-passkey-response',
                 requestId,
                 result: {
-                    error: error.message
+                    error: error.message,
+                    errorName: error.name
                 }
             }, '*');
         }

@@ -52,7 +52,8 @@ function PasskeySaveModal(props) {
         props.options.userName,
         props.options.rpId,
         safe.bstringKey,
-        props.options.userHandle
+        props.options.userHandle,
+        props.options.algorithm
       );
       const encryptedData = passhubCrypto.encryptItem(
         encodePasskeyCleartext(passkey.cleartext, passkey.passkey),

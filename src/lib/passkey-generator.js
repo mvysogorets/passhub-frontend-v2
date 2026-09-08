@@ -9,6 +9,43 @@
 const PasskeyGenerator = (() => {
     'use strict';
 
+    const ES256_ALGORITHM = -7;
+    const DEFAULT_CREDENTIAL_PARAMETERS = [
+        { type: 'public-key', alg: ES256_ALGORITHM },
+        { type: 'public-key', alg: -257 }
+    ];
+
+    function assertSupportedAlgorithm(algorithm) {
+        if (algorithm !== ES256_ALGORITHM) {
+            throw new DOMException(
+                'PassHub does not support the requested credential algorithm',
+                'NotSupportedError'
+            );
+        }
+    }
+
+    function selectCredentialAlgorithm(pubKeyCredParams) {
+        if (!Array.isArray(pubKeyCredParams)) {
+            throw new TypeError('pubKeyCredParams is required');
+        }
+
+        const parameters = pubKeyCredParams.length
+            ? pubKeyCredParams
+            : DEFAULT_CREDENTIAL_PARAMETERS;
+        const selected = parameters.find(parameter =>
+            parameter?.type === 'public-key' && parameter.alg === ES256_ALGORITHM
+        );
+
+        if (!selected) {
+            throw new DOMException(
+                'PassHub does not support any algorithm offered by the relying party',
+                'NotSupportedError'
+            );
+        }
+
+        return selected.alg;
+    }
+
     /**
      * Generate a new key pair for the passkey
      * @returns {Promise<CryptoKeyPair>}
@@ -143,12 +180,15 @@ const PasskeyGenerator = (() => {
      * @param {string} rpId - Relying Party ID (domain)
      * @param {string} safeKey - Binary AES key of the selected safe
      * @param {string} userHandle - RP-provided user.id encoded as Base64URL
+     * @param {number} algorithm - Negotiated COSE signature algorithm
      * @returns {Promise<Object>} Passkey structure for storage
      */
-    async function createPasskey(siteName, username, rpId, safeKey, userHandle) {
+    async function createPasskey(siteName, username, rpId, safeKey, userHandle, algorithm) {
         if (!userHandle) {
             throw new Error("Passkey user handle is required");
         }
+
+        assertSupportedAlgorithm(algorithm);
 
         // Generate a key pair
         const keyPair = await generateKeyPair();
@@ -169,6 +209,7 @@ const PasskeyGenerator = (() => {
             userHandle: userHandle,
             counter: 0,
             rpId: rpId,
+            algorithm,
             created: new Date().toISOString()
         };
 
@@ -197,6 +238,7 @@ const PasskeyGenerator = (() => {
      * @returns {Promise<Object>} Assertion to send to the server
      */
     async function usePasskey(passkey, challenge, safeKey, options = {}) {
+        assertSupportedAlgorithm(passkey.algorithm);
         const privateKey = await unwrapPrivateKey(passkey.privateKey, safeKey);
 
         // Create authenticatorData
@@ -348,7 +390,7 @@ const PasskeyGenerator = (() => {
 
         // Public key (COSE format)
         const publicKeyJwk = JSON.parse(passkey.publicKey);
-        const coseKey = jwkToCose(publicKeyJwk);
+        const coseKey = jwkToCose(publicKeyJwk, passkey.algorithm);
 
         // Assemble attestedCredentialData
         const attestedCredentialData = new Uint8Array([
@@ -397,7 +439,8 @@ const PasskeyGenerator = (() => {
      * @param {Object} jwk
      * @returns {Uint8Array}
      */
-    function jwkToCose(jwk) {
+    function jwkToCose(jwk, algorithm) {
+        assertSupportedAlgorithm(algorithm);
         // COSE Key Parameters for ES256 (ECDSA P-256 + SHA-256)
         const coseKey = new Map();
 
@@ -405,7 +448,7 @@ const PasskeyGenerator = (() => {
         coseKey.set(1, 2);
 
         // Algorithm: ES256 (-7)
-        coseKey.set(3, -7);
+        coseKey.set(3, algorithm);
 
         // Curve: P-256 (1)
         coseKey.set(-1, 1);
@@ -550,6 +593,7 @@ const PasskeyGenerator = (() => {
 
     // Public API
     return {
+        selectCredentialAlgorithm,
         createPasskey,
         usePasskey,
         createCredentialForSite,

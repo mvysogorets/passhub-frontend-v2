@@ -68,6 +68,16 @@ import PasskeyGenerator from './passkey-generator.js';
         }
     };
 
+    function responseToError(result, fallbackMessage) {
+        if (result?.errorName === 'InvalidStateError') {
+            return new DOMException(result.error || fallbackMessage, 'InvalidStateError');
+        }
+        if (result?.errorName === 'TypeError') {
+            return new TypeError(result.error || fallbackMessage);
+        }
+        return new Error(result?.error || fallbackMessage);
+    }
+
     function savePasskeyInReact(options) {
         return new Promise((resolve, reject) => {
             const requestId = crypto.randomUUID();
@@ -87,7 +97,7 @@ import PasskeyGenerator from './passkey-generator.js';
                 if (result?.success) {
                     resolve(result);
                 } else {
-                    reject(new Error(result?.error || 'Passkey was not saved'));
+                    reject(responseToError(result, 'Passkey was not saved'));
                 }
             };
 
@@ -212,7 +222,8 @@ import PasskeyGenerator from './passkey-generator.js';
                     userDisplayName: data.userDisplayName,
                     userHandle: data.userHandle,
                     siteName: data.rpName || data.rpId,
-                    algorithm
+                    algorithm,
+                    excludeCredentials: data.excludeCredentials || []
                 });
 
                 console.log('Passkey created, converting to WebAuthn format');

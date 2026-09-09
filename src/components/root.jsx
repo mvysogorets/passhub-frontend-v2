@@ -26,7 +26,7 @@ import MspPage from './mspPage';
 import progress from "../lib/progress";
 import * as passhubCrypto from "../lib/crypto";
 import PasskeyGenerator from "../lib/passkey-generator.js";
-import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
+import { encodePasskeyCleartext, isDirectWritableSafe, normalizeCredentialId } from "../lib/passkey";
 
 import { downloadUserData } from "../lib/userData";
 
@@ -37,11 +37,6 @@ import { keepTicketAlive, enablePaste, serverLog, getApiUrl, getVerifier, getFol
 let firstTime = true;
 let idleM = null;
 let copyMoveOperation = "";
-
-const normalizeCredentialId = value => String(value || "")
-  .replace(/\+/g, "-")
-  .replace(/\//g, "_")
-  .replace(/=+$/, "");
 
 function getDirectPasskeyCandidates(safes, rpId, allowCredentialIds = []) {
   const allowedIds = allowCredentialIds.map(normalizeCredentialId);
@@ -638,7 +633,10 @@ function Root(props) {
           completePasskeySave({ success: true, passkey });
         }}
         onCancel={() => completePasskeySave({ error: "Passkey save cancelled" })}
-        onError={(error) => completePasskeySave({ error })}
+        onError={(error) => completePasskeySave({
+          error: error?.message || String(error),
+          errorName: error?.name,
+        })}
       />
 
       <PasskeySelectModal

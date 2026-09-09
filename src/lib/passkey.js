@@ -1,5 +1,12 @@
 const PASSKEY_PAYLOAD_INDEX = 5;
 
+function normalizeCredentialId(value) {
+  return String(value || "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
 function encodePasskeyCleartext(displayFields, passkey) {
   return [
     ...(displayFields || []).slice(0, PASSKEY_PAYLOAD_INDEX),
@@ -40,8 +47,38 @@ function isDirectWritableSafe(safe) {
   );
 }
 
+function hasExcludedPasskey(safes, rpId, excludeCredentials = []) {
+  if (!Array.isArray(excludeCredentials)) {
+    throw new TypeError("excludeCredentials must be an array");
+  }
+
+  const excludedIds = new Set(
+    excludeCredentials
+      .filter(descriptor => descriptor?.type === "public-key")
+      .map(descriptor => normalizeCredentialId(descriptor.id))
+      .filter(Boolean)
+  );
+  if (!excludedIds.size) return false;
+
+  for (const safe of safes || []) {
+    if (!isDirectWritableSafe(safe)) continue;
+
+    for (const item of safe.rawItems || safe.items || []) {
+      if (item?.version !== 6 || item.type !== "passkey" || !item.passkey) continue;
+      if (item.passkey.rpId !== rpId) continue;
+      if (excludedIds.has(normalizeCredentialId(item.passkey.credentialId))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export {
   encodePasskeyCleartext,
+  hasExcludedPasskey,
   hydratePasskeyItem,
   isDirectWritableSafe,
+  normalizeCredentialId,
 };

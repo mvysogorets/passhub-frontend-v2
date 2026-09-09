@@ -6,7 +6,7 @@ import Modal from "react-bootstrap/Modal";
 
 import * as passhubCrypto from "../lib/crypto";
 import PasskeyGenerator from "../lib/passkey-generator.js";
-import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
+import { encodePasskeyCleartext, hasExcludedPasskey, isDirectWritableSafe } from "../lib/passkey";
 import { getApiUrl, getVerifier, limits } from "../lib/utils";
 
 function PasskeySaveModal(props) {
@@ -43,6 +43,17 @@ function PasskeySaveModal(props) {
     setError("");
 
     try {
+      if (hasExcludedPasskey(
+        props.safes,
+        props.options.rpId,
+        props.options.excludeCredentials
+      )) {
+        throw new DOMException(
+          "This PassHub credential is already registered for the relying party",
+          "InvalidStateError"
+        );
+      }
+
       if (!PasskeyGenerator?.createPasskey) {
         throw new Error("Passkey generator is not available");
       }
@@ -81,6 +92,10 @@ function PasskeySaveModal(props) {
 
       props.onSaved(passkey);
     } catch (saveError) {
+      if (saveError?.name === "InvalidStateError") {
+        props.onError(saveError);
+        return;
+      }
       const message = saveError.message || "Server error. Please try again later";
       setError(message);
       setSaving(false);

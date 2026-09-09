@@ -1,5 +1,6 @@
 import * as WWPass from 'wwpass-frontend';
 import { lastModified, serverLog } from './utils';
+import { hydratePasskeyItem } from './passkey';
 import forge from 'node-forge';
 
 let WebCryptoPrivateKey = null;
@@ -307,7 +308,7 @@ function encryptFolder(folder, aes_key) {
     if (!("options" in item)) {  // who did it?
       if (item.note) {
         options["note"] = item.note;
-      } else if (item.version === 5) {
+      } else if (item.version === 5 || item.version === 6) {
         options["version"] = item.version;
       }
     } else {
@@ -357,6 +358,7 @@ function decodeItem(item, aesKey) {
   if ((item.version === 3) || (item.version === 4) || (item.version === 5) || (item.version === 6))  {
     const cleartext = decodeItemGCM(item, aesKey);
     item.cleartext = cleartext;
+    hydratePasskeyItem(item);
     return;
     //    return decodeItemGCM(item, aesKey);
   }

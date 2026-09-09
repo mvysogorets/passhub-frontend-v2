@@ -1,4 +1,5 @@
 import { fromArrays } from './csv';
+import { isPasskeyItem } from './utils';
 
 let csv='';
 
@@ -6,7 +7,7 @@ let csv='';
 function exportFolder(folder) {
   const path = folder.path.join('/');
   for (let i = 0; i < folder.items.length; i++) {
-    if (folder.items[i].hasOwnProperty('file')) {
+    if (folder.items[i].hasOwnProperty('file') || isPasskeyItem(folder.items[i])) {
       continue;
     }
     // bitwarden compatible

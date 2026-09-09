@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './lib/passhub-passkey-api.js';
 import App from './App'
 // import './style.css'
 // import './index.css'
@@ -59,4 +60,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </QueryClientProvider>
 )
-

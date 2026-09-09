@@ -3,6 +3,11 @@ import { getApiUrl, getVerifier } from "./utils";
 import * as passhubCrypto from "./crypto";
 import { getFolderById } from "../lib/utils";
 
+function folderContainsPasskey(folder) {
+  return (folder.items || []).some(item => item.type === "passkey")
+    || (folder.folders || []).some(folderContainsPasskey);
+}
+
 
 function moveItemFinalize(recordID, src_safe, dst_safe, dst_folder, item, operation) {
   return axios
@@ -28,6 +33,10 @@ function moveFolder(safes, targetNode, folderID) {
 
   const dstBinaryKey = targetNode.safe ? targetNode.safe.bstringKey : targetNode.bstringKey;
   const srcFolder = getFolderById(safes, folderID);
+  const targetSafe = targetNode.safe || targetNode;
+  if (targetSafe.group && folderContainsPasskey(srcFolder)) {
+    return Promise.reject({ message: "Passkeys cannot be moved to a group safe" });
+  }
   const folder = passhubCrypto.encryptFolder(srcFolder, dstBinaryKey);
   if (srcFolder.path.length > 1) {
     if (srcFolder.path[srcFolder.path.length - 2][1] == targetNode.id) {
@@ -67,6 +76,10 @@ function doMove(safes, targetNode, item, operation) {
   }
 
   const dstBinaryKey = targetNode.safe ? targetNode.safe.bstringKey : targetNode.bstringKey;
+  const targetSafe = targetNode.safe || targetNode;
+  if (item.type === "passkey" && targetSafe.group) {
+    return Promise.reject({ message: "Passkeys cannot be moved to a group safe" });
+  }
 
   let dst_safe = targetNode.id;
   let dstFolder = 0;
@@ -112,7 +125,7 @@ function doMove(safes, targetNode, item, operation) {
         let options = {};
         if (item.note) {
           options["note"] = item.note;
-        } else if (item.version === 5) {
+        } else if (item.version === 5 || item.version === 6) {
           options["version"] = item.version;
         }
         let eItem = passhubCrypto.encryptItem(

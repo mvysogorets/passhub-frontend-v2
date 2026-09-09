@@ -3,7 +3,7 @@ import * as utils from "./utils";
 let xml = '';
 
 function dump_item(item, indent) {
-  if (item.hasOwnProperty('file')) {
+  if (item.hasOwnProperty('file') || utils.isPasskeyItem(item)) {
     return;
   }
 

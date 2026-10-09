@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import axios from "axios";
@@ -11,6 +11,13 @@ function DeleteItemModal(props) {
 
 
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Clear any error left over from a previous open/close cycle whenever the dialog is (re)shown.
+  useEffect(() => {
+    if (props.show) {
+      setErrorMsg("");
+    }
+  }, [props.show]);
 
   const queryClient = useQueryClient();
 
@@ -107,24 +114,38 @@ function DeleteItemModal(props) {
       </div>
       <div className="ModalTitle h2">{modalTitle}</div>
 
-      <Modal.Body>
-        {errorMsg && (
-          <div style={{ color: "red" }}>{errorMsg}</div>
-        )}
-        Do you really want to delete{" "}
-        <span style={{ fontSize: "larger", fontWeight: "bold" }}>
-          {title} ?
-        </span>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="outline-secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="danger" type="submit" onClick={onSubmit}>
-          Delete
-        </Button>
-      </Modal.Footer>
-    </Modal>
+      {errorMsg && (
+        <>
+          <Modal.Body>
+            <div style={{ color: "red" }}>{errorMsg}</div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={onClose}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </>
+      )}
+
+      {(errorMsg == "") && (
+        <>
+          <Modal.Body>
+            Do you really want to delete{" "}
+            <span style={{ fontSize: "larger", fontWeight: "bold" }}>
+              {title} ?
+            </span>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="danger" type="submit" onClick={onSubmit}>
+              Delete
+            </Button>
+          </Modal.Footer>
+        </>
+      )}
+    </Modal >
   );
 }
 

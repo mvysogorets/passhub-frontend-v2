@@ -101,7 +101,7 @@ function ImportModal(props) {
 
     }
 
-    reader.onload = () => {
+    reader.onload = async () => {
       const text = reader.result;
       let imported = {};
       try {
@@ -151,13 +151,13 @@ function ImportModal(props) {
         let importedSafe;
         if ((imported.folders.length == 1) && (imported.folders[0].name == 'lastpass')) {
           imported.folders[0].name = imported.name;
-          importedSafe = createSafeFromFolder(imported.folders[0]);
+          importedSafe = await createSafeFromFolder(imported.folders[0]);
         } else {
-          importedSafe = createSafeFromFolder(imported);
+          importedSafe = await createSafeFromFolder(imported);
         }
         uploadImportedData([importedSafe]);
       } else {
-        const safeArray = importMerge(imported.folders, props.safes);
+        const safeArray = await importMerge(imported.folders, props.safes);
         uploadImportedData(safeArray);
       }
     };

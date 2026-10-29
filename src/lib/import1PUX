@@ -396,7 +396,7 @@ async function import1PUX(zipFileContent, puxFilename, mode) {
         .then(() => zip.file("export.data").async("string"))
         .then(jsonObj => {
             const obj = JSON.parse(jsonObj);
-            return onePassToPasshub(obj, puxFilename).then(imported => {
+            return onePassToPasshub(obj, puxFilename).then(async imported => {
                 const filesToUpload = []
                 zip.folder("files").forEach((relativePath, file) => {
                     for (const fid of fileIDs) {
@@ -412,7 +412,7 @@ async function import1PUX(zipFileContent, puxFilename, mode) {
                     for (let currentVault = 0; currentVault < imported.folders.length; currentVault++) {
                         const folder = imported.folders[currentVault];
 
-                        const { safe: importedSafe, binaryKey } = passhubCrypto.createSafeFromFolder(folder, true);
+                        const { safe: importedSafe, binaryKey } = await passhubCrypto.createSafeFromFolder(folder, true);
                         importedSafes.push(importedSafe);
                         for (const fileID of fileIDs) {
                             if (fileID.currentVault == currentVault) {
@@ -435,7 +435,7 @@ async function import1PUX(zipFileContent, puxFilename, mode) {
                     });
                 }
 
-                const { safe: importedSafe, binaryKey } = passhubCrypto.createSafeFromFolder(imported, true)
+                const { safe: importedSafe, binaryKey } = await passhubCrypto.createSafeFromFolder(imported, true)
                 aesKey = binaryKey;
                 return uploadImportedData([importedSafe]).then((r) => {
                     if ((r.status == "Ok") && (r.safeIDs.length == 1)) {

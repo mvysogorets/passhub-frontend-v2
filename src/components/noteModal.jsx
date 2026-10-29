@@ -70,13 +70,13 @@ function NoteModal(props) {
     props.onClose();
   };
 
-  const onSubmit = (title, note) => {
+  const onSubmit = async (title, note) => {
     const pData = [title, "", "", "", note];
     const options = { note: 1 };
 
     const safe = props.args.safe;
 
-    const aesKey = safe.bstringKey;
+    const aesKey = safe.subtleKey;
     const SafeID = safe.id;
 
     let folderID = 0;
@@ -86,7 +86,7 @@ function NoteModal(props) {
       folderID = props.args.folder.id;
     }
 
-    const eData = passhubCrypto.encryptItem(pData, aesKey, options);
+    const eData = await passhubCrypto.encryptItem(pData, aesKey, options);
     const data = {
       verifier: getVerifier(),
       vault: SafeID,

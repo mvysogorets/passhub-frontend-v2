@@ -306,7 +306,7 @@ function PasswordModal(props) {
     props.onClose();
   };
 
-  const onSubmit = (title, note) => {
+  const onSubmit = async (title, note) => {
 
     let _url = url;
     let _secondaryUrl = secondaryUrl.trim();
@@ -335,7 +335,7 @@ function PasswordModal(props) {
 
     const safe = props.args.safe;
 
-    const aesKey = safe.bstringKey;
+    const aesKey = safe.subtleKey;
     const SafeID = safe.id;
 
     let folderID = 0;
@@ -351,7 +351,7 @@ function PasswordModal(props) {
       ? [folder.safe.bstringKey, folder.safe.id, folder.id]
       : [folder.bstringKey, folder.id, 0];
 */
-    const eData = passhubCrypto.encryptItem(pData, aesKey, options);
+    const eData = await passhubCrypto.encryptItem(pData, aesKey, options);
     const data = {
       verifier: getVerifier(),
       vault: SafeID,

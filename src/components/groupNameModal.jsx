@@ -58,7 +58,7 @@ function GroupNameModal(props) {
     props.onClose();
   };
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     const _name = name.trim();
     if (_name.length == 0) {
       setName(_name);
@@ -76,7 +76,7 @@ function GroupNameModal(props) {
         }
       }
 
-      const group = passhubCrypto.createGroup(_name);
+      const group = await passhubCrypto.createGroup(_name);
 
       groupMutation.mutate({
         url: 'group.php', args: {
@@ -100,9 +100,9 @@ function GroupNameModal(props) {
     }
 
 
-    const eName = passhubCrypto.encryptGroupName(
+    const eName = await passhubCrypto.encryptGroupName(
       _name,
-      props.group.bstringKey
+      props.group.subtleKey
     );
     groupMutation.mutate({
       url: 'group.php', args: {

@@ -91,35 +91,35 @@ function mergeSafe(site, backup) {
   return { id: site.id, items: new_items, folders: new_folders};
 }
 
-function encryptAdditions(safeAdditions, aesKey) {
+async function encryptAdditions(safeAdditions, safe) {
   const result = { items: [], folders: [] };
 
   // const aes_key = site.aes_key;
   const newItems = safeAdditions.items; 
   for (let e = 0; e < newItems.length; e++) {
-    result.items.push(encryptItem(newItems[e].cleartext, aesKey, newItems[e].options));
+    result.items.push(await encryptItem(newItems[e].cleartext, safe.subtleKey, newItems[e].options));
   }
   const newFolders = safeAdditions.folders;
   for (let f = 0; f < newFolders.length; f++) {
-    result.folders.push(encryptFolder(newFolders[f], aesKey));
+    result.folders.push(await encryptFolder(newFolders[f], safe));
   }
   return { id: safeAdditions.id, items: result.items, folders: result.folders };
 }
 
-function importMerge(importedFolders, flatSafeArray) {
+async function importMerge(importedFolders, flatSafeArray) {
       const restoreDiff = [];
       const encryptionPromises = [];
       for (let f = 0; f < importedFolders.length; f++) {
         const siteSafe = findSafeByName(flatSafeArray, importedFolders[f].name);
         if (!siteSafe) {
-          restoreDiff.push(createSafeFromFolder(importedFolders[f]));
+          restoreDiff.push(await createSafeFromFolder(importedFolders[f]));
           continue;
         }
         const safeAdditions = mergeSafe(siteSafe, importedFolders[f]);
         if (!safeAdditions) {
           continue;
         }
-        const eSafe = encryptAdditions(safeAdditions, siteSafe.bstringKey);
+        const eSafe = await encryptAdditions(safeAdditions, siteSafe);
         restoreDiff.push(eSafe);
       }
       return restoreDiff;

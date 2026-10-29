@@ -29,22 +29,22 @@ import progress from "../lib/progress";
 
 
 
-const uploadFileP = (theFile, SafeID, folderID, note, aesKey, props) =>
+const uploadFileP = (theFile, SafeID, folderID, note, safe, props) =>
   theFile.arrayBuffer()
-    .then(pFileContent => {
+    .then(async pFileContent => {
 
       const { fileInfo, cFileContent } = passhubCrypto.encryptFile(
         pFileContent,
-        aesKey
+        safe.bstringKey
       );
       const title = theFile.name;
 
       const pData = [title, "", "", "", note];
       const options = {};
 
-      const eData = passhubCrypto.encryptItem(
+      const eData = await passhubCrypto.encryptItem(
         pData,
-        aesKey,
+        safe.subtleKey,
         options
       );
 
@@ -82,11 +82,11 @@ const uploadFileP = (theFile, SafeID, folderID, note, aesKey, props) =>
         })
     })
 
-function uploadFiles({ files, SafeID, folderID, note, aesKey, props }) {
+function uploadFiles({ files, SafeID, folderID, note, safe, props }) {
 
   let promise = Promise.resolve();
   for (let i = 0; i < files.length; i++) {
-    promise = promise.then(() => uploadFileP(files[i], SafeID, folderID, note, aesKey, props))
+    promise = promise.then(() => uploadFileP(files[i], SafeID, folderID, note, safe, props))
   }
   return promise;
 }
@@ -129,17 +129,17 @@ function CreateFileModal(props) {
       return;
     }
 
-    const [aesKey, SafeID, folderID] = props.args.folder.safe
+    const [safe, SafeID, folderID] = props.args.folder.safe
       ? [
-        props.args.folder.safe.bstringKey,
+        props.args.folder.safe,
         props.args.folder.safe.id,
         props.args.folder.id,
       ]
-      : [props.args.folder.bstringKey, props.args.folder.id, 0];
+      : [props.args.folder, props.args.folder.id, 0];
 
     progress.lock(0, "file upload");
     //    return uploadFiles( files, SafeID, folderID, note, aesKey)
-    fileMutation.mutate({ files, SafeID, folderID, note, aesKey, props });
+    fileMutation.mutate({ files, SafeID, folderID, note, safe, props });
     return;
     /*
     

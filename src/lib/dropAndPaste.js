@@ -24,11 +24,11 @@ function moveItemFinalize(recordID, src_safe, dst_safe, dst_folder, item, operat
     });
 }
 
-function moveFolder(safes, targetNode, folderID) {
+async function moveFolder(safes, targetNode, folderID) {
 
-  const dstBinaryKey = targetNode.safe ? targetNode.safe.bstringKey : targetNode.bstringKey;
+  const dstSafeKeys = targetNode.safe ? targetNode.safe : targetNode;
   const srcFolder = getFolderById(safes, folderID);
-  const folder = passhubCrypto.encryptFolder(srcFolder, dstBinaryKey);
+  const folder = await passhubCrypto.encryptFolder(srcFolder, dstSafeKeys);
   if (srcFolder.path.length > 1) {
     if (srcFolder.path[srcFolder.path.length - 2][1] == targetNode.id) {
       console.log("move to parent: identity operation");
@@ -67,12 +67,12 @@ function moveFolder(safes, targetNode, folderID) {
 }
 
 
-function doMove(safes, targetNode, item, operation) {
+async function doMove(safes, targetNode, item, operation) {
   if ("type" in item) { //ad-hoc folder
     return moveFolder(safes, targetNode, item.id);
   }
 
-  const dstBinaryKey = targetNode.safe ? targetNode.safe.bstringKey : targetNode.bstringKey;
+  const dstSafeKeys = targetNode.safe ? targetNode.safe : targetNode;
 
   let dst_safe = targetNode.id;
   let dstFolder = 0;
@@ -90,10 +90,10 @@ function doMove(safes, targetNode, item, operation) {
   if ("file" in item) {
     const srcSafe = getFolderById(safes, item.SafeID);
 
-    let eItem = passhubCrypto.moveFile(
+    let eItem = await passhubCrypto.moveFile(
       item,
-      srcSafe.bstringKey,
-      dstBinaryKey
+      srcSafe,
+      dstSafeKeys
     );
     return moveItemFinalize(
       item._id,
@@ -110,9 +110,9 @@ function doMove(safes, targetNode, item, operation) {
   } else if (item.version === 5) {
     options["version"] = item.version;
   }
-  let eItem = passhubCrypto.encryptItem(
+  let eItem = await passhubCrypto.encryptItem(
     item.cleartext,
-    dstBinaryKey,
+    dstSafeKeys.subtleKey,
     options,
     item.history
   );

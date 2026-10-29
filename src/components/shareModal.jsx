@@ -158,7 +158,7 @@ function ShareModal(props) {
     </Menu>
   );
 
-  const shareByMailFinal = (username, eAesKey) => {
+  const shareByMailFinal = async (username, eAesKey) => {
     let role = "readonly";
     if (invitedUserRights == "limited view") {
       role = "limited view";
@@ -181,9 +181,9 @@ function ShareModal(props) {
       }
       recipientSafeName += " /" + email;
     }
-    const eName = passhubCrypto.encryptSafeName(
+    const eName = await passhubCrypto.encryptSafeName(
       recipientSafeName,
-      props.args.folder.bstringKey
+      props.args.folder.subtleKey
     );
 
     const vault = folder.safe ? folder.safe.id : folder.id;

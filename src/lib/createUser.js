@@ -20,7 +20,7 @@ const subtle = crypto ? (crypto.webkitSubtle || crypto.subtle) : null;
 const credentials_to_send = { publicKey: null, encryptedPrivateKey: null };
 
 
-function uploadUserData() {
+async function uploadUserData() {
 
     setPublicKey(credentials_to_send.publicKey);
 
@@ -28,7 +28,7 @@ function uploadUserData() {
 
     const encryptedSafes = [];
     for (let folder of rootSafe.folders) {
-        encryptedSafes.push(createSafeFromFolder(folder));
+        encryptedSafes.push(await createSafeFromFolder(folder));
     }
 
     return axios.post('create_user.php',

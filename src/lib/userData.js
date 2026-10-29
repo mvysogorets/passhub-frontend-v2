@@ -57,15 +57,12 @@ function updateInactivityTimeout(newTimeout) {
   accountData['idleTimeout'] = newTimeout;
 }
 
-function decryptSafeData(safe, aesKey) {
-  for (const item of safe.items) {
-    //    item.cleartext = passhubCrypto.decodeItem(item, aesKey);
-    passhubCrypto.decodeItem(item, aesKey);
-  }
+async function decryptSafeData(safe) {
+  await Promise.all(safe.items.map((item) => passhubCrypto.decodeItem(item, safe)));
 
-  for (const folder of safe.folders) {
-    folder.cleartext = passhubCrypto.decodeFolder(folder, aesKey);
-  }
+  await Promise.all(safe.folders.map(async (folder) => {
+    folder.cleartext = await passhubCrypto.decodeFolder(folder, safe.subtleKey);
+  }));
 }
 
 function decryptGroups(eGroups) {
@@ -73,9 +70,10 @@ function decryptGroups(eGroups) {
     return Promise.resolve([]);
   }
   const promises = eGroups.map((group) =>
-    passhubCrypto.decryptAesKey(group.encrypted_key_CSE).then((bstringKey) => {
+    passhubCrypto.decryptAesKey(group.encrypted_key_CSE).then(async (bstringKey) => {
       group.bstringKey = bstringKey;
-      group.name = passhubCrypto.decryptSafeName(group, group.bstringKey);
+      group.subtleKey = await passhubCrypto.importSafeKey(bstringKey);
+      group.name = await passhubCrypto.decryptSafeName(group, group.subtleKey);
       return group;
     }
     ));
@@ -84,19 +82,13 @@ function decryptGroups(eGroups) {
 
 function decryptSafes(eSafes) {
 
-  const promises = eSafes.map((safe) => {
+  const promises = eSafes.map(async (safe) => {
     if (!safe.bstringKey) {
-      return passhubCrypto.decryptAesKey(safe.key).then((bstringKey) => {
-        safe.bstringKey = bstringKey;
-        safe.name = passhubCrypto.decryptSafeName(safe, safe.bstringKey);
-        return decryptSafeData(safe, safe.bstringKey);
-      })
-    } else {
-      return Promise.resolve(0).then(() => {
-        safe.name = passhubCrypto.decryptSafeName(safe, safe.bstringKey);
-        return decryptSafeData(safe, safe.bstringKey);
-      })
+      safe.bstringKey = await passhubCrypto.decryptAesKey(safe.key);
     }
+    safe.subtleKey = await passhubCrypto.importSafeKey(safe.bstringKey);
+    safe.name = await passhubCrypto.decryptSafeName(safe, safe.subtleKey);
+    return decryptSafeData(safe);
   });
   return Promise.all(promises);
 }

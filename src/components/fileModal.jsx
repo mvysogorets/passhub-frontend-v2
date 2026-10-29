@@ -173,7 +173,6 @@ function FileModal(props) {
       safe = props.args.folder;
     }
 
-    const aesKey = safe.bstringKey;
     const SafeID = safe.id;
 
     progress.lock(0);
@@ -184,11 +183,11 @@ function FileModal(props) {
         verifier: getVerifier(),
         itemId: props.args.item._id,
       })
-      .then((reply) => {
+      .then(async (reply) => {
         progress.unlock();
         const result = reply.data;
         if (result.status === "Ok") {
-          const { filename, buf } = passhubCrypto.decryptFile(result, aesKey);
+          const { filename, buf } = await passhubCrypto.decryptFile(result, safe);
           const mime = getMimeByExt(filename);
           const blob = new Blob([buf], { type: mime });
           callBack(blob, filename);
@@ -244,7 +243,7 @@ function FileModal(props) {
     console.log(type, size, lastModifiedDate);
   };
 
-  const onSubmit = (title, note) => {
+  const onSubmit = async (title, note) => {
     if (!props.args.item && !theFile) {
       setErrorMsg("No file defined");
       return;
@@ -263,13 +262,12 @@ function FileModal(props) {
       safe = props.args.folder;
     }
 
-    const aesKey = safe.bstringKey;
     const SafeID = safe.id;
     const folderID = props.args.item
       ? props.args.item.folder
       : props.args.folder;
 
-    const eData = passhubCrypto.encryptItem(pData, aesKey, options);
+    const eData = await passhubCrypto.encryptItem(pData, safe.subtleKey, options);
 
     if (props.args.item) {
       progress.lock(0);
@@ -302,7 +300,7 @@ function FileModal(props) {
     reader.onload = () => {
       const { fileInfo, cFileContent } = passhubCrypto.encryptFile(
         reader.result,
-        aesKey
+        safe.bstringKey
       );
 
       const data = new FormData();

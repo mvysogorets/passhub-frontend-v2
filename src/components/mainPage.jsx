@@ -171,7 +171,7 @@ function MainPage(props) {
 
   //////////  end of move item processing
 
-  const folderMenuCmd = (node, cmd) => {
+  const folderMenuCmd = async (node, cmd) => {
 
     if (cmd === "add safe") {
       setFolderNameModalArgs({});
@@ -230,7 +230,7 @@ function MainPage(props) {
 
     if (cmd === "convertFolderToSafe") {
       // check admin rights
-      const newSafe = passhubCrypto.convertFolderToSafe(node);
+      const newSafe = await passhubCrypto.convertFolderToSafe(node);
       const uri = "folder_ops.php";
       const args = {
         operation: cmd,

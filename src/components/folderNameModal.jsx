@@ -65,7 +65,7 @@ function FolderNameModal(props) {
     props.onClose();
   };
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     //console.log(`submit ${title}`);
     const _name = name.trim();
     if (_name.length == 0) {
@@ -76,7 +76,7 @@ function FolderNameModal(props) {
 
     if (title == "Create Safe") {
 
-      const safe = passhubCrypto.createSafe(_name);
+      const safe = await passhubCrypto.createSafe(_name);
 
       folderMutation.mutate({
         url: 'create_safe.php', args: {
@@ -95,11 +95,11 @@ function FolderNameModal(props) {
             : [parent.key, parent.id, 0];
       */
       const [aesKey, SafeID, folderID] = parent.safe
-        ? [parent.safe.bstringKey, parent.safe.id, parent.id]
-        : [parent.bstringKey, parent.id, 0];
+        ? [parent.safe.subtleKey, parent.safe.id, parent.id]
+        : [parent.subtleKey, parent.id, 0];
 
 
-      const eFolderName = passhubCrypto.encryptFolderName(_name, aesKey);
+      const eFolderName = await passhubCrypto.encryptFolderName(_name, aesKey);
 
       folderMutation.mutate({
         url: 'folder_ops.php', args: {
@@ -110,20 +110,6 @@ function FolderNameModal(props) {
           name: eFolderName,
         }
       });
-
-      /*
-      passhubCrypto.decryptAesKey(eAesKey).then((aesKey) => {
-        const eFolderName = passhubCrypto.encryptFolderName(_name, aesKey);
-
-        folderMutation.mutate({url: 'folder_ops.php', args: {
-          operation: "create",
-          verifier: getVerifier(),
-          SafeID,
-          folderID,
-          name: eFolderName,
-        }});
-      })
-*/
 
       return;
     }
@@ -137,9 +123,9 @@ function FolderNameModal(props) {
     }
 
     if (title == "Rename Safe") {
-      const eName = passhubCrypto.encryptSafeName(
+      const eName = await passhubCrypto.encryptSafeName(
         _name,
-        props.args.folder.bstringKey
+        props.args.folder.subtleKey
       );
       folderMutation.mutate({
         url: 'update_vault.php', args: {
@@ -155,7 +141,7 @@ function FolderNameModal(props) {
 
     if (title == "Rename Folder") {
 
-      const eFolderName = passhubCrypto.encryptFolderName(_name, props.args.folder.safe.bstringKey);
+      const eFolderName = await passhubCrypto.encryptFolderName(_name, props.args.folder.safe.subtleKey);
       folderMutation.mutate({
         url: 'folder_ops.php', args: {
           operation: "rename",
@@ -165,22 +151,6 @@ function FolderNameModal(props) {
           name: eFolderName,
         }
       })
-
-
-
-      /*
-            passhubCrypto.decryptAesKey(props.args.folder.safe.key)
-            .then((aesKey) => {
-              const eFolderName = passhubCrypto.encryptFolderName(_name, aesKey);
-              folderMutation.mutate({url: 'folder_ops.php', args: {
-                operation: "rename",
-                verifier: getVerifier(),
-                SafeID: props.args.folder.safe.id,
-                folderID: props.args.folder.id,
-                name: eFolderName,
-              }})
-            })
-      */
 
       return;
     }

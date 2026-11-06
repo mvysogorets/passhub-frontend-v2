@@ -338,10 +338,6 @@ function isPasswordItem(item) {
   return !item.note && !item.file && item.version !== 5 && item.version !== 6;
 }
 
-function isPasskeyItem(item) {
-  return item.version === 6 && item.type === "passkey";
-}
-
 function isFileItem(item) {
   return item.file ? true : false;
 }
@@ -356,6 +352,10 @@ function isAddressItem(item) {
 
 function isNoteItem(item) {
   return item.note ? true : false;
+}
+
+function isPasskeyItem(item) {
+  return ('passkey' in item);
 }
 
 
@@ -415,5 +415,4 @@ export {
   isAddressItem,
   isPasskeyItem,
   isNoteItem,
-
 };

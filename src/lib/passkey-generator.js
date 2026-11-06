@@ -63,8 +63,8 @@ async function wrapPrivateKey(privateKey, safeKey) {
         version: 1,
         format: "jwk",
         algorithm: "AES-GCM",
-        iv: arrayBufferToBase64Url(iv),
-        wrappedKey: arrayBufferToBase64Url(wrappedKey)
+        iv: arrayBufferToBase64(iv),
+        wrappedKey: arrayBufferToBase64(wrappedKey)
     });
 }
 
@@ -106,28 +106,31 @@ function generateRandomBytes(length) {
  * @param {ArrayBuffer} buffer
  * @returns {string}
  */
-function arrayBufferToBase64(buffer) {
+function arrayBufferToBase64_X(buffer) {
+    /*
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
+    */
 }
 
-function arrayBufferToBase64Url(buffer) {
+function arrayBufferToBase64Url_X(buffer) {
     return arrayBufferToBase64(buffer)
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');
 }
 
+
 /**
  * Convert Base64 to ArrayBuffer
  * @param {string} base64
  * @returns {ArrayBuffer}
  */
-function base64ToArrayBuffer(base64) {
+function base64ToArrayBuffer_X(base64) {
     const normalized = base64.replace(/-/g, '+').replace(/_/g, '/');
     const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
     const binary = window.atob(padded);
@@ -138,6 +141,42 @@ function base64ToArrayBuffer(base64) {
     return bytes.buffer;
 }
 
+
+function arrayBufferToBase64(arrayBuffer) {
+
+    const uint8Array = new Uint8Array(arrayBuffer);
+    return uint8Array.toBase64({ alphabet: "base64url" });
+
+    /*    
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+*/
+}
+
+
+function base64ToArrayBuffer(base64string) {
+
+    return Uint8Array.fromBase64(base64string, { alphabet: "base64url" })
+    /*
+    
+        // Restore padding.
+        base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) {
+          base64 += '=';
+        }
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+    */
+}
+
+
 /**
  * Create a new Passkey
  * @param {string} siteName - Site name
@@ -147,10 +186,37 @@ function base64ToArrayBuffer(base64) {
  * @param {string} userHandle - RP-provided user.id encoded as Base64URL
  * @returns {Promise<Object>} Passkey structure for storage
  */
-async function createPasskey(siteName, username, rpId, safeKey, userHandle) {
+//async function createPasskey(siteName, username, rpId, safeKey, userHandle) {
+async function createPasskey(message, aesKey) {
+
+    const publicKey = message.options.publicKey;
+
+    const userHandle = publicKey.user?.id; // ? arrayBufferToBase64(publicKey.user.id) : null;
     if (!userHandle) {
         throw new Error("Passkey user handle is required");
     }
+
+    const rpId = publicKey.rp?.id || message.url; // window.location.hostname;
+
+    const rpName = publicKey.rp?.name || rp.Id;
+    const userDisplayName = publicKey.user?.displayName || '';
+
+    const pubKeyCredParams = publicKey.pubKeyCredParams == null
+        ? null
+        : Array.from(publicKey.pubKeyCredParams, parameter => ({
+            type: parameter.type,
+            alg: parameter.alg
+        }));
+    const excludeCredentials = Array.from(publicKey.excludeCredentials || [], descriptor => ({
+        type: descriptor.type,
+        id: base64ToArrayBuffer(descriptor.id),
+        transports: Array.from(descriptor.transports || [])
+    }));
+    //    const origin = window.location.origin;
+
+    //    return 2;
+
+
 
     // Generate a key pair
     const keyPair = await generateKeyPair();
@@ -161,35 +227,45 @@ async function createPasskey(siteName, username, rpId, safeKey, userHandle) {
     // Generate credential ID (16 bytes)
     const credentialId = generateRandomBytes(16);
 
-    const wrappedPrivateKey = await wrapPrivateKey(keyPair.privateKey, safeKey);
+    //    return 3;
+
+    const wrappedPrivateKey = await wrapPrivateKey(keyPair.privateKey, aesKey);
 
     // Form the passkey structure
     const passkeyData = {
-        credentialId: arrayBufferToBase64Url(credentialId),
+        credentialId: arrayBufferToBase64(credentialId),
         privateKey: wrappedPrivateKey,
         publicKey: JSON.stringify(publicKeyJwk),
         userHandle: userHandle,
         counter: 0,
-        rpId: rpId,
-        created: new Date().toISOString()
+        rpId: rpId
+        //        created: new Date().toISOString()
     };
+
+    //    return 4;
+
+
+    const passkeyCreateResponce = await createPasskeyCreateResponse(passkeyData, message.options);
+
 
     // Form the cleartext data
     const cleartext = [
-        siteName,
-        siteName,
-        username,
+        rpName,
+        rpName,
+        userDisplayName,
         rpId,
         `Passkey created on ${new Date().toLocaleDateString()}`
     ];
 
-    return {
+    return [{
         version: 6,
         type: 'passkey',
         cleartext: cleartext,
         passkey: passkeyData
-    };
+    }, passkeyCreateResponce];
 }
+
+
 
 /**
  * Use an existing passkey for authentication
@@ -320,6 +396,78 @@ function ecdsaSignatureToDer(signature) {
     ]).buffer;
 }
 
+
+
+async function createPasskeyCreateResponse(passkey, options) {
+    // Create authenticatorData for attestation
+    const rpIdHash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(passkey.rpId)
+    );
+
+    // Flags: UP (0x01) + UV (0x04) + AT (0x40) = 0x45
+    const flags = new Uint8Array([0x45]);
+
+    // Counter (4 bytes, big-endian)
+    const counter = new Uint8Array(4);
+
+    // AAGUID (16 zeros for software authenticator)
+    const aaguid = new Uint8Array(16);
+
+    // Credential ID length (2 bytes)
+    const credIdBytes = base64ToArrayBuffer(passkey.credentialId);
+    const credIdLength = new Uint8Array(2);
+    new DataView(credIdLength.buffer).setUint16(0, credIdBytes.byteLength, false);
+
+    // Public key (COSE format)
+    const publicKeyJwk = JSON.parse(passkey.publicKey);
+    const coseKey = jwkToCose(publicKeyJwk);
+
+    // Assemble attestedCredentialData
+    const attestedCredentialData = new Uint8Array([
+        ...aaguid,
+        ...credIdLength,
+        ...new Uint8Array(credIdBytes),
+        ...coseKey
+    ]);
+
+    // Assemble the full authenticatorData
+    const authenticatorData = new Uint8Array([
+        ...new Uint8Array(rpIdHash),
+        ...flags,
+        ...counter,
+        ...attestedCredentialData
+    ]);
+    console.log('441 options ', options);
+    // Create clientDataJSON
+    const clientData = {
+        type: 'webauthn.create',
+        challenge: options.publicKey.challenge,
+        origin: options.origin,
+        crossOrigin: false
+    };
+    const clientDataJSON = new TextEncoder().encode(JSON.stringify(clientData));
+
+    return {
+        id: passkey.credentialId,
+        rawId: passkey.credentialId,
+        response: {
+            attestationObject: createAttestationObject(authenticatorData),
+            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+        },
+        type: 'public-key'
+    };
+    /*
+    
+        return {
+            credentialId: passkey.credentialId,
+            attestationObject: createAttestationObject(authenticatorData),
+            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+        };
+    */
+}
+
+
 /**
  * Create a WebAuthn PublicKeyCredential for registration on an external site
  * @param {Object} passkey - Passkey from PassHub
@@ -327,6 +475,9 @@ function ecdsaSignatureToDer(signature) {
  * @param {Function} decryptFn - Decryption function
  * @returns {Promise<Object>} Credential response for the site
  */
+
+
+
 async function createCredentialForSite(passkey, options, decryptFn) {
     // Create authenticatorData for attestation
     const rpIdHash = await crypto.subtle.digest(
@@ -377,20 +528,22 @@ async function createCredentialForSite(passkey, options, decryptFn) {
     };
     const clientDataJSON = new TextEncoder().encode(JSON.stringify(clientData));
 
-    // return {
-    //     id: passkey.credentialId,
-    //     rawId: passkey.credentialId,
-    //     response: {
-    //         attestationObject: createAttestationObject(authenticatorData),
-    //         clientDataJSON: arrayBufferToBase64(clientDataJSON)
-    //     },
-    //     type: 'public-key'
-    // };
+    return {
+        id: passkey.credentialId,
+        rawId: passkey.credentialId,
+        response: {
+            attestationObject: createAttestationObject(authenticatorData),
+            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+        },
+        type: 'public-key'
+    };
+    /*
     return {
         credentialId: passkey.credentialId,
         attestationObject: createAttestationObject(authenticatorData),
         clientDataJSON: arrayBufferToBase64(clientDataJSON)
     };
+*/
 }
 
 /**
@@ -413,11 +566,11 @@ function jwkToCose(jwk) {
     coseKey.set(-1, 1);
 
     // x-coordinate
-    const x = base64UrlToArrayBuffer(jwk.x);
+    const x = base64ToArrayBuffer(jwk.x);
     coseKey.set(-2, new Uint8Array(x));
 
     // y-coordinate
-    const y = base64UrlToArrayBuffer(jwk.y);
+    const y = base64ToArrayBuffer(jwk.y);
     coseKey.set(-3, new Uint8Array(y));
 
     // Encode as CBOR

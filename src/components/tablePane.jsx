@@ -11,12 +11,14 @@ import NoteItem from "./noteItem";
 import BankCardItem from "./bankCardItem";
 import FileItem from "./fileItem";
 import AddressItem from "./addressItem";
+import PasskeyItem from "./passkeyItem";
 
 import PasswordModal from "./passwordModal";
 import NoteModal from "./noteModal";
 import FileModal from "./fileModal";
 import BankCardModal from './bankCardModal';
 import AddressModal from './addressModal';
+import PasskeyModal from './passkeyModal';
 import CreateFileModal from "./createFileModal";
 import DeleteItemModal from "./deleteItemModal";
 import FolderNameModal from "./folderNameModal";
@@ -28,7 +30,7 @@ import AddDropUp from "./addDropUp";
 import RefreshButton from './refreshButton';
 
 
-import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isAddressItem, isNoteItem } from "../lib/utils";
+import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isAddressItem, isNoteItem, isPasskeyItem } from "../lib/utils";
 
 function TablePane(props) {
 
@@ -275,6 +277,9 @@ function TablePane(props) {
         if (isFileItem(item)) return item.cleartext[0];
         if (isBankCardItem(item)) return item.cleartext[1];
         if (isAddressItem(item)) return item.cleartext[1];
+
+        if (isPasskeyItem(item)) return item.cleartext[0]; //*** */
+
         return "unknown record type";
     }
     const sortItemsFunction = (a, b) => {
@@ -512,6 +517,18 @@ function TablePane(props) {
                                                     showItemModal("BankCardModal", item)
                                                 }
                                             />
+                                        )) ||
+                                        (isPasskeyItem(f) && (
+                                            <PasskeyItem
+                                                item={f}
+                                                key={`item${f._id}`}
+                                                searchMode={props.searchMode}
+                                                newItem={newItemRef.current == f._id}
+                                                showModal={(item) =>
+                                                    showItemModal("PasskeyModal", item)
+                                                }
+                                            />
+
                                         ))
                                 )}
                             </tbody>
@@ -588,6 +605,18 @@ function TablePane(props) {
                     onCloseSetFolder={onItemModalCloseSetFolder}
                     key="pwm"
                 ></PasswordModal>
+
+                <PasskeyModal
+                    show={showModal === "PasskeyModal"}
+                    args={itemModalArgs}
+                    openDeleteItemModal={openDeleteItemModal}
+                    onClose={onItemModalClose}
+                    onCloseSetFolder={onItemModalCloseSetFolder}
+                    newItemInd={newItemInd}
+
+                    key="pkm"
+                ></PasskeyModal>
+
 
                 <FileModal
                     show={showModal === "FileModal"}

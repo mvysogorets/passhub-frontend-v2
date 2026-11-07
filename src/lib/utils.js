@@ -298,7 +298,6 @@ function atStorageLimits() {
   return s >= account.maxStorage;
 }
 
-
 let pasteTimestamp = 0
 const setPasteTimestamp = (ts) => { pasteTimestamp = ts; }
 

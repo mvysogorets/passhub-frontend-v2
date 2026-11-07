@@ -14,6 +14,7 @@ import PasskeyGenerator from "./passkey-generator";
 import { b64ToAb, encryptAesKey, encryptItem } from "./crypto";
 import { encodePasskeyCleartext /*, hasExcludedPasskey, isDirectWritableSafe */ } from "./passkey";
 import { getUserData } from "./userData";
+import { advise } from "./search";
 import { getApiUrl, getVerifier } from "../lib/utils";
 
 function getAnySafe() {
@@ -48,8 +49,16 @@ async function create(message, aesKey) {
 }
 
 async function get(message) {
-    return true;
+    const result = await advise(message);
+    console.log('53 result', result);
+    const { id /* "passkey-get-response"*/, rpId, found } = result;
+    console.log('foundKeys', found);
+    console.log('rpId', rpId);
+
+
+    return found;
 }
+
 
 
 async function savePasskey(safe, encryptedPasskeyItem) {
@@ -109,6 +118,8 @@ async function passkeyRequest(message) {
         }
     }
     if (message.id == 'passkey-get') {
+        console.log('got msg passkey-create', message);
+
         return get(message);
     }
 }

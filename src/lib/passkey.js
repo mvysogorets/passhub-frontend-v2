@@ -98,6 +98,7 @@ function hasExcludedPasskey(safes, rpId, excludeCredentials = []) {
 
 export {
   encodePasskeyCleartext,
+  decodeEncryptedPasskey,
   hasExcludedPasskey,
   hydratePasskeyItem,
   isDirectWritableSafe,

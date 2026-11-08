@@ -76,8 +76,7 @@ async function sendAdvise(message) {
             .catch(err => {
                 console.log('catch 48')
             })
-        return response;
-
+        return;
     }
 
     const found = await findRecords(message);

@@ -145,6 +145,7 @@ function passkeySearch(what) {
           title: item.cleartext[0],
           username: item.cleartext[2],
           item,
+          safeKey: safe.bstringKey,
           passkey
 
           //          passkey,

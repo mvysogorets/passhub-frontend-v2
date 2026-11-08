@@ -51,12 +51,34 @@ async function create(message, aesKey) {
 async function get(message) {
     const result = await advise(message);
     console.log('53 result', result);
-    const { id /* "passkey-get-response"*/, rpId, found } = result;
+    const { rpId, found } = result;
     console.log('foundKeys', found);
     console.log('rpId', rpId);
 
+    if (!found || found.length === 0) {
+        return { id: "passkey-get-response", error: "No matching passkey", errorName: "NotAllowedError" };
+    }
 
-    return found;
+    // use the first passkey found
+    const { passkey, safeKey } = found[0];
+    try {
+        const publicKey = message.options.publicKey;
+        const assertion = await PasskeyGenerator.usePasskey(
+            passkey,
+            PasskeyGenerator.base64UrlToArrayBuffer(publicKey.challenge), // base64url -> bytes
+            safeKey,
+            {
+                origin: message.options.origin,
+                rpId: publicKey.rpId || rpId,
+                userVerification: publicKey.userVerification,
+            }
+        );
+        // all binary fields are base64url strings
+        return { id: "passkey-get-response", assertion };
+    } catch (e) {
+        console.log('error in get ', e);
+        return { id: "passkey-get-response", error: String(e?.message || e), errorName: "NotAllowedError" };
+    }
 }
 
 

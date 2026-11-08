@@ -63,8 +63,8 @@ async function wrapPrivateKey(privateKey, safeKey) {
         version: 1,
         format: "jwk",
         algorithm: "AES-GCM",
-        iv: arrayBufferToBase64(iv),
-        wrappedKey: arrayBufferToBase64(wrappedKey)
+        iv: arrayBufferToBase64Url(iv),
+        wrappedKey: arrayBufferToBase64Url(wrappedKey)
     });
 }
 
@@ -77,11 +77,11 @@ async function unwrapPrivateKey(wrappedPrivateKey, safeKey) {
     const wrappingKey = await importWrappingKey(safeKey);
     return await window.crypto.subtle.unwrapKey(
         "jwk",
-        base64ToArrayBuffer(envelope.wrappedKey),
+        base64UrlToArrayBuffer(envelope.wrappedKey),
         wrappingKey,
         {
             name: "AES-GCM",
-            iv: new Uint8Array(base64ToArrayBuffer(envelope.iv))
+            iv: new Uint8Array(base64UrlToArrayBuffer(envelope.iv))
         },
         {
             name: "ECDSA",
@@ -118,31 +118,13 @@ function arrayBufferToBase64_X(buffer) {
 }
 
 function arrayBufferToBase64Url_X(buffer) {
-    return arrayBufferToBase64(buffer)
+    return arrayBufferToBase64Url(buffer)
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');
 }
 
-
-/**
- * Convert Base64 to ArrayBuffer
- * @param {string} base64
- * @returns {ArrayBuffer}
- */
-function base64ToArrayBuffer_X(base64) {
-    const normalized = base64.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
-    const binary = window.atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
-}
-
-
-function arrayBufferToBase64(arrayBuffer) {
+function arrayBufferToBase64Url(arrayBuffer) {
 
     const uint8Array = new Uint8Array(arrayBuffer);
     return uint8Array.toBase64({ alphabet: "base64url" });
@@ -157,7 +139,7 @@ function arrayBufferToBase64(arrayBuffer) {
 }
 
 
-function base64ToArrayBuffer(base64string) {
+function base64UrlToArrayBuffer(base64string) {
 
     return Uint8Array.fromBase64(base64string, { alphabet: "base64url" })
     /*
@@ -191,7 +173,7 @@ async function createPasskey(message, aesKey) {
 
     const publicKey = message.options.publicKey;
 
-    const userHandle = publicKey.user?.id; // ? arrayBufferToBase64(publicKey.user.id) : null;
+    const userHandle = publicKey.user?.id; // ? arrayBufferToBase64Url(publicKey.user.id) : null;
     if (!userHandle) {
         throw new Error("Passkey user handle is required");
     }
@@ -209,7 +191,7 @@ async function createPasskey(message, aesKey) {
         }));
     const excludeCredentials = Array.from(publicKey.excludeCredentials || [], descriptor => ({
         type: descriptor.type,
-        id: base64ToArrayBuffer(descriptor.id),
+        id: base64UrlToArrayBuffer(descriptor.id),
         transports: Array.from(descriptor.transports || [])
     }));
     //    const origin = window.location.origin;
@@ -233,7 +215,7 @@ async function createPasskey(message, aesKey) {
 
     // Form the passkey structure
     const passkeyData = {
-        credentialId: arrayBufferToBase64(credentialId),
+        credentialId: arrayBufferToBase64Url(credentialId),
         privateKey: wrappedPrivateKey,
         publicKey: JSON.stringify(publicKeyJwk),
         userHandle: userHandle,
@@ -300,7 +282,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
     // Create clientDataJSON
     const clientData = {
         type: 'webauthn.get',
-        challenge: arrayBufferToBase64Url(challenge),
+        challenge: arrayBufferToBase64Url(challenge), // base64url
         origin: options.origin || window.location.origin,
         crossOrigin: false
     };
@@ -340,7 +322,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
     }
     const derSignature = ecdsaSignatureToDer(signature);
     const userHandleLength = passkey.userHandle
-        ? base64ToArrayBuffer(passkey.userHandle).byteLength
+        ? base64UrlToArrayBuffer(passkey.userHandle).byteLength
         : 0;
 
     console.info('[PassHub WebAuthn] assertion diagnostics', JSON.stringify({
@@ -367,9 +349,9 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
 
     return {
         credentialId: passkey.credentialId,
-        authenticatorData: arrayBufferToBase64(authenticatorData),
-        clientDataJSON: arrayBufferToBase64(clientDataJSON),
-        signature: arrayBufferToBase64(derSignature),
+        authenticatorData: arrayBufferToBase64Url(authenticatorData),
+        clientDataJSON: arrayBufferToBase64Url(clientDataJSON),
+        signature: arrayBufferToBase64Url(derSignature),
         userHandle: passkey.userHandle
     };
 }
@@ -415,7 +397,7 @@ async function createPasskeyCreateResponse(passkey, options) {
     const aaguid = new Uint8Array(16);
 
     // Credential ID length (2 bytes)
-    const credIdBytes = base64ToArrayBuffer(passkey.credentialId);
+    const credIdBytes = base64UrlToArrayBuffer(passkey.credentialId);
     const credIdLength = new Uint8Array(2);
     new DataView(credIdLength.buffer).setUint16(0, credIdBytes.byteLength, false);
 
@@ -453,7 +435,7 @@ async function createPasskeyCreateResponse(passkey, options) {
         rawId: passkey.credentialId,
         response: {
             attestationObject: createAttestationObject(authenticatorData),
-            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+            clientDataJSON: arrayBufferToBase64Url(clientDataJSON)
         },
         type: 'public-key'
     };
@@ -462,7 +444,7 @@ async function createPasskeyCreateResponse(passkey, options) {
         return {
             credentialId: passkey.credentialId,
             attestationObject: createAttestationObject(authenticatorData),
-            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+            clientDataJSON: arrayBufferToBase64Url(clientDataJSON)
         };
     */
 }
@@ -495,7 +477,7 @@ async function createCredentialForSite(passkey, options, decryptFn) {
     const aaguid = new Uint8Array(16);
 
     // Credential ID length (2 bytes)
-    const credIdBytes = base64ToArrayBuffer(passkey.credentialId);
+    const credIdBytes = base64UrlToArrayBuffer(passkey.credentialId);
     const credIdLength = new Uint8Array(2);
     new DataView(credIdLength.buffer).setUint16(0, credIdBytes.byteLength, false);
 
@@ -533,7 +515,7 @@ async function createCredentialForSite(passkey, options, decryptFn) {
         rawId: passkey.credentialId,
         response: {
             attestationObject: createAttestationObject(authenticatorData),
-            clientDataJSON: arrayBufferToBase64(clientDataJSON)
+            clientDataJSON: arrayBufferToBase64Url(clientDataJSON)
         },
         type: 'public-key'
     };
@@ -541,7 +523,7 @@ async function createCredentialForSite(passkey, options, decryptFn) {
     return {
         credentialId: passkey.credentialId,
         attestationObject: createAttestationObject(authenticatorData),
-        clientDataJSON: arrayBufferToBase64(clientDataJSON)
+        clientDataJSON: arrayBufferToBase64Url(clientDataJSON)
     };
 */
 }
@@ -566,28 +548,17 @@ function jwkToCose(jwk) {
     coseKey.set(-1, 1);
 
     // x-coordinate
-    const x = base64ToArrayBuffer(jwk.x);
+    const x = base64UrlToArrayBuffer(jwk.x);
     coseKey.set(-2, new Uint8Array(x));
 
     // y-coordinate
-    const y = base64ToArrayBuffer(jwk.y);
+    const y = base64UrlToArrayBuffer(jwk.y);
     coseKey.set(-3, new Uint8Array(y));
 
     // Encode as CBOR
     return cborEncodeMap(coseKey);
 }
 
-/**
- * Base64URL to ArrayBuffer
- * @param {string} base64url
- * @returns {ArrayBuffer}
- */
-function base64UrlToArrayBuffer(base64url) {
-    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-    const paddingLength = (4 - (base64.length % 4)) % 4;
-    const padded = base64 + '='.repeat(paddingLength);
-    return base64ToArrayBuffer(padded);
-}
 
 /**
  * Simple CBOR encoding for Map
@@ -662,7 +633,7 @@ function createAttestationObject(authenticatorData) {
     attestationMap.set('authData', authenticatorData);
 
     const cbor = cborEncodeAttestationObject(attestationMap);
-    return arrayBufferToBase64(cbor.buffer);
+    return arrayBufferToBase64Url(cbor.buffer);
 }
 
 /**
@@ -708,9 +679,9 @@ return {
     createPasskey,
     usePasskey,
     createCredentialForSite,
-    arrayBufferToBase64,
-    base64ToArrayBuffer
+    arrayBufferToBase64Url,
+    base64UrlToArrayBuffer
 };
 */
 
-export default { usePasskey, createPasskey, base64ToArrayBuffer, createCredentialForSite };
+export default { usePasskey, createPasskey, base64UrlToArrayBuffer, createCredentialForSite };

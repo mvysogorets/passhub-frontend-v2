@@ -251,7 +251,7 @@ async function createPasskey(message, aesKey) {
 
 /**
  * Use an existing passkey for authentication
- * @param {Object} passkey - Passkey structure from PassHub
+ * @param {Object} passkey - Passkey structure from PassHub; passkey.counter is the (already incremented and saved) sign counter to use
  * @param {ArrayBuffer} challenge - Challenge from the server
  * @param {string} safeKey - Binary AES key of the passkey safe
  * @returns {Promise<Object>} Assertion to send to the server
@@ -276,7 +276,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
 
     // Counter (4 bytes, big-endian)
     const counter = new Uint8Array(4);
-    new DataView(counter.buffer).setUint32(0, passkey.counter + 1, false);
+    new DataView(counter.buffer).setUint32(0, passkey.counter, false);
 
     // Assemble authenticatorData
     const authenticatorData = new Uint8Array([
@@ -344,7 +344,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
         userVerified: Boolean(flags[0] & 0x04),
         backupEligible: Boolean(flags[0] & 0x08),
         backupState: Boolean(flags[0] & 0x10),
-        signCount: passkey.counter + 1,
+        signCount: passkey.counter,
         credentialId: passkey.credentialId,
         userHandleLength,
         authenticatorDataLength: authenticatorData.byteLength,

@@ -12,7 +12,7 @@ import axios from "axios";
 
 import PasskeyGenerator from "./passkey-generator";
 import { b64ToAb, encryptAesKey, encryptItem } from "./crypto";
-import { encodePasskeyCleartext /*, hasExcludedPasskey, isDirectWritableSafe */ } from "./passkey";
+import { encodePasskeyCleartext, isDirectWritableSafe } from "./passkey";
 import { getUserData } from "./userData";
 import { advise } from "./search";
 import { getApiUrl, getVerifier } from "../lib/utils";
@@ -64,6 +64,23 @@ async function chooseFound(found, rpId, askExtension) {
     if (!reply || reply.cancelled || reply.error) return null;
     const idx = Number(reply.index);
     return Number.isInteger(idx) && idx >= 0 && idx < found.length ? idx : null;
+}
+
+// Let the user pick the safe for a new passkey in the extension popup; resolves to a safe or null.
+// Only safe names are sent to the extension, never keys.
+async function chooseSafe(askExtension) {
+    const safes = (getUserData().safes || []).filter(isDirectWritableSafe);
+    if (safes.length === 0) return null;
+    if (safes.length === 1 || !askExtension) return safes[0];
+    const candidates = safes.map((s, index) => ({ index, origin: "", username: s.name }));
+    const reply = await askExtension({
+        id: "passkey-choose",
+        title: "Choose a safe for the new passkey",
+        candidates,
+    });
+    if (!reply || reply.cancelled || reply.error) return null;
+    const idx = Number(reply.index);
+    return Number.isInteger(idx) && idx >= 0 && idx < safes.length ? safes[idx] : null;
 }
 
 async function get(message, askExtension) {
@@ -144,7 +161,15 @@ async function passkeyRequest(message, askExtension) {
 
     if (message.id == 'passkey-create') {
         try {
-            const anySafe = getAnySafe();
+            const anySafe = await chooseSafe(askExtension);
+            if (!anySafe) {
+                return {
+                    id: "passkey-create-response",
+                    error: "No safe selected",
+                    errorName: "NotAllowedError",
+                    requestId: message.requestId,
+                };
+            }
             const aesKey = anySafe.bstringKey;
             console.log('got msg passkey-create', message);
             const [newPasskey, response] = await create(message, aesKey);

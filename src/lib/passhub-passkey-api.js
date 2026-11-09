@@ -48,7 +48,25 @@ async function create(message, aesKey) {
     return [encryptedPasskey, passkeyCreateResponse];
 }
 
-async function get(message) {
+// Ask the extension to show a popup with the candidates; resolves to the chosen index or null.
+// Secrets (passkey, safeKey, item) are never sent, only display fields.
+async function chooseFound(found, rpId, askExtension) {
+    if (found.length === 1) return 0;
+    if (!askExtension) return 0; // no way to ask: fall back to the first one
+    const candidates = found.map((f, index) => ({
+        index,
+        origin: f.passkey?.rpId || rpId,
+        username: f.username,
+        title: f.title,
+        safe: f.safe,
+    }));
+    const reply = await askExtension({ id: "passkey-choose", rpId, candidates });
+    if (!reply || reply.cancelled || reply.error) return null;
+    const idx = Number(reply.index);
+    return Number.isInteger(idx) && idx >= 0 && idx < found.length ? idx : null;
+}
+
+async function get(message, askExtension) {
     const result = await advise(message);
     console.log('53 result', result);
     const { rpId, found } = result;
@@ -59,9 +77,12 @@ async function get(message) {
         return { id: "passkey-get-response", error: "No matching passkey", errorName: "NotAllowedError" };
     }
 
-    // use the first passkey found
-    const { passkey, safeKey } = found[0];
     try {
+        const chosen = await chooseFound(found, rpId, askExtension);
+        if (chosen === null) {
+            return { id: "passkey-get-response", error: "Passkey selection cancelled", errorName: "NotAllowedError" };
+        }
+        const { passkey, safeKey } = found[chosen];
         const publicKey = message.options.publicKey;
         const assertion = await PasskeyGenerator.usePasskey(
             passkey,
@@ -109,7 +130,7 @@ async function savePasskey(safe, encryptedPasskeyItem) {
 }
 
 
-async function passkeyRequest(message) {
+async function passkeyRequest(message, askExtension) {
     /*    
         if (['passkey-create', 'passkey-get'].includes(message.id)) {
             try {
@@ -134,7 +155,7 @@ async function passkeyRequest(message) {
 
 
             console.log('98 a ', a);
-            return { id: "passkey-create-response", response };
+            return { id: "passkey-create-response", response, requestId: message.requestId };
         } catch (e) {
             console.log('error 108 ', e);
         }
@@ -142,7 +163,9 @@ async function passkeyRequest(message) {
     if (message.id == 'passkey-get') {
         console.log('got msg passkey-create', message);
 
-        return get(message);
+        // requestId lets the extension deliver the answer to the page that asked
+        const reply = await get(message, askExtension);
+        return { ...reply, requestId: message.requestId };
     }
 }
 

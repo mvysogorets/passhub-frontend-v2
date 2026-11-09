@@ -59,7 +59,13 @@ async function sendAdvise(message) {
     }
 
     if (['passkey-create', 'passkey-get'].includes(message.id)) {
-        const passkeyResponse = await passkeyRequest(message);
+        // lets the passkey code ask the extension a question and get its reply (e.g. which passkey to use)
+        const askExtension = (msg) => extension.runtime.sendMessage(extensionId, msg)
+            .catch(err => {
+                consoleLog(err);
+                return null;
+            });
+        const passkeyResponse = await passkeyRequest(message, askExtension);
         extension.runtime.sendMessage(extensionId, passkeyResponse)
             .then(response => {
                 if (!response) {

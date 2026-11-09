@@ -259,10 +259,16 @@ async function createPasskey(message, aesKey) {
 async function usePasskey(passkey, challenge, safeKey, options = {}) {
     const privateKey = await unwrapPrivateKey(passkey.privateKey, safeKey);
 
+    // rpId may have been stored as a full URL (create without rp.id); the hash must use the bare host
+    let rpIdForHash = options.rpId || passkey.rpId;
+    if (rpIdForHash.includes('://')) {
+        rpIdForHash = new URL(rpIdForHash).hostname;
+    }
+
     // Create authenticatorData
     const rpIdHash = await crypto.subtle.digest(
         'SHA-256',
-        new TextEncoder().encode(passkey.rpId)
+        new TextEncoder().encode(rpIdForHash)
     );
 
     // Flags: User Present (0x01) + User Verified (0x04) = 0x05
@@ -282,7 +288,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
     // Create clientDataJSON
     const clientData = {
         type: 'webauthn.get',
-        challenge: arrayBufferToBase64Url(challenge), // base64url
+        challenge: arrayBufferToBase64Url(challenge).replace(/=+$/, ''), // unpadded base64url
         origin: options.origin || window.location.origin,
         crossOrigin: false
     };

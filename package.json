@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build --base=/frontend/",
     "builddev": "vite build --base=/frontend/ --mode development ",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:integrity": "node --test --test-reporter=spec tests/integrity/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.2",

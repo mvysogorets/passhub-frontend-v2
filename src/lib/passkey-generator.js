@@ -180,7 +180,7 @@ async function createPasskey(message, aesKey) {
 
     const rpId = publicKey.rp?.id || message.url; // window.location.hostname;
 
-    const rpName = publicKey.rp?.name || rp.Id;
+    const rpName = publicKey.rp?.name || rpId;
     const userDisplayName = publicKey.user?.displayName || '';
 
     const pubKeyCredParams = publicKey.pubKeyCredParams == null

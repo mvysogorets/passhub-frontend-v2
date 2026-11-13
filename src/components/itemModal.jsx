@@ -294,13 +294,13 @@ if (history.length > 0) {
         {(!props.edit && !limitedView) ? (
 
           <div className="itemModalTools">
-            {(historyIndex == 0) && (
+            {!props.disableMove && (historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-move"
                 title="Move"
                 onClick={handleMove}
               />)}
-            {props.args.item && !("file" in props.args.item) && (historyIndex == 0) && (
+            {!props.disableCopy && (historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-copy"
                 title="Copy"

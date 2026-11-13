@@ -390,6 +390,7 @@ function FileModal(props) {
           onSubmit={onSubmit}
           edit={edit}
           errorMsg={errorMsg}
+          disableCopy
         >
           {!props.args.item ? (
             <div

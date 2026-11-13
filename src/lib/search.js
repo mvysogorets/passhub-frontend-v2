@@ -3,6 +3,7 @@ import {
   isPasswordItem,
   isFileItem,
   isBankCardItem,
+  isPasskeyItem,
   isNoteItem,
 } from "./utils";
 
@@ -132,27 +133,39 @@ function passkeySearch(what) {
       .filter(Boolean)
   );
 
-  const found = [];
-  if (rpId) {
-    for (const safe of getUserData().safes) {
-      if (!safe.key) continue; // not confirmed
-      for (const item of safe.rawItems) {
-        const passkey = decodeEncryptedPasskey(item);
-        if (!passkey || !rpIdMatches(passkey.rpId, rpId)) continue;
-        if (allowed.size && !allowed.has(normalizeCredentialId(passkey.credentialId))) continue;
-        found.push({
-          safe: safe.name,
-          title: item.cleartext[0],
-          username: item.cleartext[2],
-          item,
-          safeKey: safe.bstringKey,
-          passkey
 
-          //          passkey,
-        });
+  const found = [];
+  try {
+    if (rpId) {
+      for (const safe of getUserData().safes) {
+        if (!safe.key) continue; // not confirmed
+        for (const item of safe.items) {
+          if (isPasskeyItem(item)) {
+            const passkey = JSON.parse(item.cleartext[5]);
+            if (!passkey || !rpIdMatches(passkey.rpId, rpId)) continue;
+            if (allowed.size && !allowed.has(normalizeCredentialId(passkey.credentialId))) continue;
+            found.push({
+              safe: safe.name,
+              title: item.cleartext[0],
+              username: item.cleartext[3],
+              item,
+              safeKey: safe.bstringKey,
+              passkey
+
+              //          passkey,
+            });
+
+          }
+        }
       }
     }
+  } catch (error) {
+    console.error("passkey search failed:", error);
   }
+
+
+
+
   return { id: "passkey-get-response", rpId, found };
 }
 

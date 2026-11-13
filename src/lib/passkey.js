@@ -42,14 +42,14 @@ function decodeEncryptedPasskey(item) {
   if (payload) {
     try {
       const parsed = JSON.parse(payload);
-      if (parsed?.type === "passkey" && parsed.passkey) {
-        return parsed.passkey;
-      }
+      return parsed;
     } catch (_error) { }
   }
 
   return null;
 }
+
+/*
 
 function hydratePasskeyItem(item) {
   const passkey = decodeEncryptedPasskey(item);
@@ -59,6 +59,7 @@ function hydratePasskeyItem(item) {
   item.passkey = passkey;
   return item;
 }
+*/
 
 function isDirectWritableSafe(safe) {
   return Boolean(
@@ -100,7 +101,7 @@ export {
   encodePasskeyCleartext,
   decodeEncryptedPasskey,
   hasExcludedPasskey,
-  hydratePasskeyItem,
+  //  hydratePasskeyItem,
   isDirectWritableSafe,
   normalizeCredentialId,
 };

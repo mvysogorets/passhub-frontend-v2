@@ -35,58 +35,25 @@ async function exportKeyToJwk(key) {
     return await window.crypto.subtle.exportKey("jwk", key);
 }
 
-function binaryStringToBytes(value) {
-    return Uint8Array.from(value, character => character.charCodeAt(0));
+/**
+ * Serialize an EC private key as unencrypted PKCS#8 (DER), Base64URL encoded
+ * @param {CryptoKey} privateKey - extractable private key
+ * @returns {Promise<string>}
+ */
+async function serializePrivateKey(privateKey) {
+    return arrayBufferToBase64Url(await window.crypto.subtle.exportKey("pkcs8", privateKey));
 }
 
-async function importWrappingKey(safeKey) {
+/**
+ * Restore a signing key from the Base64URL PKCS#8 string
+ * @param {string} serializedPrivateKey
+ * @returns {Promise<CryptoKey>}
+ */
+async function deserializePrivateKey(serializedPrivateKey) {
     return await window.crypto.subtle.importKey(
-        "raw",
-        binaryStringToBytes(safeKey),
-        { name: "AES-GCM" },
-        false,
-        ["wrapKey", "unwrapKey"]
-    );
-}
-
-async function wrapPrivateKey(privateKey, safeKey) {
-    const wrappingKey = await importWrappingKey(safeKey);
-    const iv = generateRandomBytes(12);
-    const wrappedKey = await window.crypto.subtle.wrapKey(
-        "jwk",
-        privateKey,
-        wrappingKey,
-        { name: "AES-GCM", iv }
-    );
-
-    return JSON.stringify({
-        version: 1,
-        format: "jwk",
-        algorithm: "AES-GCM",
-        iv: arrayBufferToBase64Url(iv),
-        wrappedKey: arrayBufferToBase64Url(wrappedKey)
-    });
-}
-
-async function unwrapPrivateKey(wrappedPrivateKey, safeKey) {
-    const envelope = JSON.parse(wrappedPrivateKey);
-    if (envelope.version !== 1 || envelope.format !== "jwk" || envelope.algorithm !== "AES-GCM") {
-        throw new Error("Unsupported wrapped passkey format");
-    }
-
-    const wrappingKey = await importWrappingKey(safeKey);
-    return await window.crypto.subtle.unwrapKey(
-        "jwk",
-        base64UrlToArrayBuffer(envelope.wrappedKey),
-        wrappingKey,
-        {
-            name: "AES-GCM",
-            iv: new Uint8Array(base64UrlToArrayBuffer(envelope.iv))
-        },
-        {
-            name: "ECDSA",
-            namedCurve: "P-256"
-        },
+        "pkcs8",
+        base64UrlToArrayBuffer(serializedPrivateKey),
+        { name: "ECDSA", namedCurve: "P-256" },
         false,
         ["sign"]
     );
@@ -99,22 +66,6 @@ async function unwrapPrivateKey(wrappedPrivateKey, safeKey) {
  */
 function generateRandomBytes(length) {
     return window.crypto.getRandomValues(new Uint8Array(length));
-}
-
-/**
- * Convert ArrayBuffer to Base64
- * @param {ArrayBuffer} buffer
- * @returns {string}
- */
-function arrayBufferToBase64_X(buffer) {
-    /*
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-    */
 }
 
 function arrayBufferToBase64Url_X(buffer) {
@@ -164,12 +115,10 @@ function base64UrlToArrayBuffer(base64string) {
  * @param {string} siteName - Site name
  * @param {string} username - Username or email
  * @param {string} rpId - Relying Party ID (domain)
- * @param {string} safeKey - Binary AES key of the selected safe
  * @param {string} userHandle - RP-provided user.id encoded as Base64URL
  * @returns {Promise<Object>} Passkey structure for storage
  */
-//async function createPasskey(siteName, username, rpId, safeKey, userHandle) {
-async function createPasskey(message, aesKey) {
+async function createPasskey(message) {
 
     const publicKey = message.options.publicKey;
 
@@ -182,6 +131,10 @@ async function createPasskey(message, aesKey) {
 
     const rpName = publicKey.rp?.name || rpId;
     const userDisplayName = publicKey.user?.displayName || '';
+    const url = message?.url;
+
+
+    // todo, not used at  the moment
 
     const pubKeyCredParams = publicKey.pubKeyCredParams == null
         ? null
@@ -189,21 +142,19 @@ async function createPasskey(message, aesKey) {
             type: parameter.type,
             alg: parameter.alg
         }));
+
+    // todo, not used at  the moment
+
     const excludeCredentials = Array.from(publicKey.excludeCredentials || [], descriptor => ({
         type: descriptor.type,
         id: base64UrlToArrayBuffer(descriptor.id),
         transports: Array.from(descriptor.transports || [])
     }));
-    //    const origin = window.location.origin;
-
-    //    return 2;
-
-
 
     // Generate a key pair
     const keyPair = await generateKeyPair();
 
-    // Export only the public key. The private key is wrapped inside Web Crypto.
+    // Public key as JWK, private key as plain PKCS#8 (the passkey item itself is encrypted by PassHub)
     const publicKeyJwk = await exportKeyToJwk(keyPair.publicKey);
 
     // Generate credential ID (16 bytes)
@@ -211,17 +162,16 @@ async function createPasskey(message, aesKey) {
 
     //    return 3;
 
-    const wrappedPrivateKey = await wrapPrivateKey(keyPair.privateKey, aesKey);
+    const serializedPrivateKey = await serializePrivateKey(keyPair.privateKey);
 
     // Form the passkey structure
     const passkeyData = {
         credentialId: arrayBufferToBase64Url(credentialId),
-        privateKey: wrappedPrivateKey,
+        privateKey: serializedPrivateKey,
         publicKey: JSON.stringify(publicKeyJwk),
         userHandle: userHandle,
-        counter: 0,
-        rpId: rpId
-        //        created: new Date().toISOString()
+        rpId: rpId,
+        counter: 0
     };
 
     //    return 4;
@@ -230,6 +180,7 @@ async function createPasskey(message, aesKey) {
     const passkeyCreateResponce = await createPasskeyCreateResponse(passkeyData, message.options);
 
 
+    /*
     // Form the cleartext data
     const cleartext = [
         rpName,
@@ -238,11 +189,12 @@ async function createPasskey(message, aesKey) {
         rpId,
         `Passkey created on ${new Date().toLocaleDateString()}`
     ];
+*/
 
     return [{
-        version: 6,
-        type: 'passkey',
-        cleartext: cleartext,
+        rpName,
+        userDisplayName,
+        url,
         passkey: passkeyData
     }, passkeyCreateResponce];
 }
@@ -253,11 +205,10 @@ async function createPasskey(message, aesKey) {
  * Use an existing passkey for authentication
  * @param {Object} passkey - Passkey structure from PassHub; passkey.counter is the (already incremented and saved) sign counter to use
  * @param {ArrayBuffer} challenge - Challenge from the server
- * @param {string} safeKey - Binary AES key of the passkey safe
  * @returns {Promise<Object>} Assertion to send to the server
  */
-async function usePasskey(passkey, challenge, safeKey, options = {}) {
-    const privateKey = await unwrapPrivateKey(passkey.privateKey, safeKey);
+async function usePasskey(passkey, challenge, options = {}) {
+    const privateKey = await deserializePrivateKey(passkey.privateKey);
 
     // rpId may have been stored as a full URL (create without rp.id); the hash must use the bare host
     let rpIdForHash = options.rpId || passkey.rpId;
@@ -331,7 +282,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
         ? base64UrlToArrayBuffer(passkey.userHandle).byteLength
         : 0;
 
-    console.info('[PassHub WebAuthn] assertion diagnostics', JSON.stringify({
+    console.info('[PassHub WebAuthn] assertion diagnostics', {
         rpId: passkey.rpId,
         requestedRpId: options.rpId || passkey.rpId,
         rpIdMatches: !options.rpId || options.rpId === passkey.rpId,
@@ -351,7 +302,7 @@ async function usePasskey(passkey, challenge, safeKey, options = {}) {
         signatureSelfVerified,
         signatureFormat: new Uint8Array(derSignature)[0] === 0x30 ? 'DER' : 'unknown',
         signatureLength: derSignature.byteLength
-    }));
+    });
 
     return {
         credentialId: passkey.credentialId,
@@ -384,17 +335,8 @@ function ecdsaSignatureToDer(signature) {
     ]).buffer;
 }
 
-
-
 async function createPasskeyCreateResponse(passkey, options) {
     // Create authenticatorData for attestation
-    const rpIdHash = await crypto.subtle.digest(
-        'SHA-256',
-        new TextEncoder().encode(passkey.rpId)
-    );
-
-    // Flags: UP (0x01) + UV (0x04) + AT (0x40) = 0x45
-    const flags = new Uint8Array([0x45]);
 
     // Counter (4 bytes, big-endian)
     const counter = new Uint8Array(4);
@@ -418,6 +360,15 @@ async function createPasskeyCreateResponse(passkey, options) {
         ...new Uint8Array(credIdBytes),
         ...coseKey
     ]);
+
+    // convert rpId string to array and calc hash
+    const rpIdHash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(passkey.rpId)
+    );
+
+    // Flags: UserPresent (0x01) + UserVerified (0x04) + AttestedData (0x40) = 0x45
+    const flags = new Uint8Array([0x45]);
 
     // Assemble the full authenticatorData
     const authenticatorData = new Uint8Array([
@@ -679,15 +630,5 @@ function cborEncodeAttestationObject(map) {
 
     return new Uint8Array(items);
 }
-/*
-// Public API
-return {
-    createPasskey,
-    usePasskey,
-    createCredentialForSite,
-    arrayBufferToBase64Url,
-    base64UrlToArrayBuffer
-};
-*/
 
 export default { usePasskey, createPasskey, base64UrlToArrayBuffer, createCredentialForSite };

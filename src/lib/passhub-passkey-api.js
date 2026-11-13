@@ -34,7 +34,7 @@ function getAnySafe() {
 
 
 async function create(message, aesKey) {
-    const [passkey, passkeyCreateResponse] = await PasskeyGenerator.createPasskey(message, aesKey);
+    const [passkey, passkeyCreateResponse] = await PasskeyGenerator.createPasskey(message);
     console.log('39 passkey', passkey);
     const encodedPasskey = encodePasskeyCleartext(passkey.cleartext, passkey.passkey);
     console.log('41 ', encodedPasskey);
@@ -143,54 +143,53 @@ async function incrementPasskeyCounter(entryId) {
     if (!hit) throw new Error("Passkey not found");
     const { safe, item: localItem } = hit;
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-        const item = await readItem(safe, entryId); // fresh item with its current revision
-        const passkey = decodeEncryptedPasskey(item);
-        if (!passkey) throw new Error("Passkey not found");
+    const item = await readItem(safe, entryId); // fresh item with its current revision
+    const passkey = decodeEncryptedPasskey(item);
+    if (!passkey) throw new Error("Passkey not found");
 
-        const updatedPasskey = { ...passkey, counter: (Number(passkey.counter) || 0) + 1 };
-        const cleartext = (item.cleartext || []).slice(0, 5);
-        const encodedCleartext = encodePasskeyCleartext(cleartext, updatedPasskey);
-        const encryptedData = encryptItem(
-            encodedCleartext,
-            safe.bstringKey,
-            { version: 6 }
-        );
-        const response = await axios.post(`${getApiUrl()}items.php`, {
-            verifier: getVerifier(),
-            vault: safe.id,
-            folder: item.folder || 0,
-            entryID: item._id,
-            expectedRevision: item.revision || 0,
-            encrypted_data: encryptedData,
-        });
-        const status = response.data?.status;
-        if (status === "login") {
-            window.location.href = "expired.php";
-            throw new Error("PassHub session expired");
-        }
-        if (status === "Ok") {
-            // keep the in-memory copy consistent with the server
-            const saved = response.data.item;
-            if (saved) {
-                Object.assign(localItem, {
-                    iv: saved.iv,
-                    data: saved.data,
-                    tag: saved.tag,
-                    revision: saved.revision,
-                    lastModified: saved.lastModified,
-                    version: saved.version,
-                });
-                localItem.cleartext = encodedCleartext;
-                localItem.passkey = updatedPasskey;
-            }
-            return { passkey: updatedPasskey, safeKey: safe.bstringKey };
-        }
-        if (status !== "Conflict") {
-            throw new Error(status || "Passkey counter could not be saved");
-        }
-        // Conflict: somebody changed the item, reread and try again
+    const updatedPasskey = { ...passkey, counter: (Number(passkey.counter) || 0) + 1 };
+    const cleartext = (item.cleartext || []).slice(0, 6);
+    cleartext[5] = JSON.stringify(updatedPasskey);
+
+    const aesKey = safe.bstringKey;
+
+    const encryptedPasskeyItem = encryptItem(cleartext, aesKey, { version: 6 });
+
+
+    const response = await axios.post(`${getApiUrl()}items.php`, {
+        verifier: getVerifier(),
+        vault: safe.id,
+        entryID: item._id,
+        folder: item.folder,
+        encrypted_data: encryptedPasskeyItem,
+    });
+    const status = response.data?.status;
+    if (status === "login") {
+        window.location.href = "expired.php";
+        throw new Error("PassHub session expired");
     }
+    if (status === "Ok") {
+        // keep the in-memory copy consistent with the server
+        const saved = response.data.item;
+
+        if (saved) {
+            Object.assign(localItem, {
+                iv: saved.iv,
+                data: saved.data,
+                tag: saved.tag,
+                revision: saved.revision,
+                lastModified: saved.lastModified,
+                version: saved.version,
+            });
+            //            localItem.cleartext = encodedCleartext;
+            localItem.passkey = updatedPasskey;
+        }
+        return { passkey: updatedPasskey };
+    }
+    if (status !== "Conflict") {
+        throw new Error(status || "Passkey counter could not be saved");
+    }
+
     throw new Error("Passkey counter could not be saved (conflict)");
 }
 
@@ -211,12 +210,11 @@ async function get(message, askExtension) {
             return { id: "passkey-get-response", error: "Passkey selection cancelled", errorName: "NotAllowedError" };
         }
         // the counter must be stored before the assertion is made
-        const { passkey, safeKey } = await incrementPasskeyCounter(found[chosen].item._id);
+        const { passkey } = await incrementPasskeyCounter(found[chosen].item._id);
         const publicKey = message.options.publicKey;
         const assertion = await PasskeyGenerator.usePasskey(
             passkey,
             PasskeyGenerator.base64UrlToArrayBuffer(publicKey.challenge), // base64url -> bytes
-            safeKey,
             {
                 origin: message.options.origin,
                 rpId: publicKey.rpId || rpId,
@@ -260,18 +258,11 @@ async function savePasskey(safe, encryptedPasskeyItem, folder = 0) {
 
 
 async function passkeyRequest(message, askExtension) {
-    /*    
-        if (['passkey-create', 'passkey-get'].includes(message.id)) {
-            try {
-                message.options.publicKey.user.id = b64ToAb(message.options.publicKey.user.id);
-                message.options.publicKey.challenge = b64ToAb(message.options.publicKey.challenge);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-    */
 
     if (message.id == 'passkey-create') {
+
+        console.log('got msg passkey-create', message);
+
         try {
             const location = await chooseLocation(askExtension);
             if (!location) {
@@ -282,13 +273,23 @@ async function passkeyRequest(message, askExtension) {
                     requestId: message.requestId,
                 };
             }
-            const anySafe = location.safe;
-            const aesKey = anySafe.bstringKey;
-            console.log('got msg passkey-create', message);
-            const [newPasskey, response] = await create(message, aesKey);
-            console.log('new passkey ', newPasskey);
 
-            const a = await savePasskey(anySafe, newPasskey, location.folder);
+            const [passkeyItem, response] = await PasskeyGenerator.createPasskey(message);
+            const cleartext = [
+                passkeyItem.rpName, // title
+                "", // notes
+                passkeyItem.rpName,
+                passkeyItem.userDisplayName,
+                passkeyItem.url,
+                JSON.stringify(passkeyItem.passkey)
+            ];
+
+            const safe = location.safe;
+            const aesKey = safe.bstringKey;
+
+            const encryptedPasskeyItem = encryptItem(cleartext, aesKey, { version: 6 });
+
+            const a = await savePasskey(safe, encryptedPasskeyItem, location.folder);
             //        const response = await createCredentialForSite(newPasskey, options);
 
 

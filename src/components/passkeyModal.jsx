@@ -61,11 +61,14 @@ function PasskeyModal(props) {
   };
 
   const fields = [
-    ["Username", item.cleartext?.[2]],
-    ["Relying party", item.cleartext?.[3] || item.passkey?.rpId],
-    ["Created", item.passkey?.created ? new Date(item.passkey.created).toLocaleString() : ""],
+    ["Username", item.cleartext?.[3]],
+    ["Relying party", item.cleartext?.[4] || item.passkey?.rpId],
+    //    ["Created", item.passkey?.created ? new Date(item.passkey.created).toLocaleString() : ""],
     ["Credential ID", item.passkey?.credentialId],
   ];
+
+  let pk = JSON.parse(item.cleartext[5]);
+  let pkPretty = JSON.stringify(pk, null, "\t");
 
   return (
     <ItemModal
@@ -78,8 +81,7 @@ function PasskeyModal(props) {
       edit={edit}
       errorMsg={errorMsg}
       limitedView={!isDirectWritableSafe(safe)}
-      allowCopy={false}
-      allowMove={false}
+      disableCopy
     >
       <div className="itemModalField upper">
         {fields.map(([label, value]) => (
@@ -88,6 +90,11 @@ function PasskeyModal(props) {
             <input className="lp" readOnly value={value || ""} />
           </div>
         ))}
+      </div>
+      <div>
+        <pre>
+          {pkPretty}
+        </pre>
       </div>
     </ItemModal>
   );

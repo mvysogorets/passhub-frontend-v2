@@ -139,7 +139,7 @@ function passkeySearch(what) {
     if (rpId) {
       for (const safe of getUserData().safes) {
         if (!safe.key) continue; // not confirmed
-        for (const item of safe.items) {
+        for (const item of safe.rawItems) {
           if (isPasskeyItem(item)) {
             const passkey = JSON.parse(item.cleartext[5]);
             if (!passkey || !rpIdMatches(passkey.rpId, rpId)) continue;

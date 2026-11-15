@@ -249,13 +249,21 @@ async function savePasskey(safe, encryptedPasskeyItem, folder = 0) {
         if (result.status !== "Ok") {
             throw new Error(result.status || "Passkey could not be saved");
         }
-        return result.status;
+        return result;
 
     } catch (e) {
         console.log('79 error ', e)
     }
 }
 
+
+// listeners are called with the id of the safe/folder a passkey was just added to
+const passkeyAddedListeners = new Set();
+
+function onPasskeyAdded(cb) {
+    passkeyAddedListeners.add(cb);
+    return () => passkeyAddedListeners.delete(cb);
+}
 
 async function passkeyRequest(message, askExtension) {
 
@@ -292,6 +300,40 @@ async function passkeyRequest(message, askExtension) {
             const a = await savePasskey(safe, encryptedPasskeyItem, location.folder);
             //        const response = await createCredentialForSite(newPasskey, options);
 
+            if (a && a.status === "Ok") {
+                // mirror the saved item locally, in the same shape as decoded server items
+                const newItem = {
+                    ...JSON.parse(encryptedPasskeyItem),
+                    _id: a.firstID,
+                    folder: location.folder || 0,
+                    cleartext,
+                    lastModified: new Date().toISOString(),
+                };
+
+                safe.rawItems = safe.rawItems || [];
+                safe.rawItems.push(newItem);
+
+                const folderId = location.folder;
+                if (!folderId || folderId == "0") {
+                    newItem.path = safe.path;
+                    safe.items = safe.items || [];
+                    safe.items.push(newItem);
+                    safe.items.sort((x, y) =>
+                        x.cleartext[0].toLowerCase().localeCompare(y.cleartext[0].toLowerCase())
+                    );
+                } else {
+                    const folder = (safe.rawFolders || []).find(f => String(f._id) === String(folderId));
+                    if (folder) {
+                        newItem.path = folder.path;
+                        folder.items = folder.items || [];
+                        folder.items.push(newItem);
+                    }
+                }
+                // let the UI (Root) re-render the table pane if it shows this location
+                const locationId = folderId && folderId != "0" ? folderId : safe.id;
+                passkeyAddedListeners.forEach(cb => cb(locationId));
+            }
+
 
             console.log('98 a ', a);
             return { id: "passkey-create-response", response, requestId: message.requestId };
@@ -310,4 +352,4 @@ async function passkeyRequest(message, askExtension) {
 
 // console.log('Extension bridge listener registered');
 
-export { passkeyRequest };
+export { passkeyRequest, onPasskeyAdded };

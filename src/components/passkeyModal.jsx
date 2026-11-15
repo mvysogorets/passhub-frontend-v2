@@ -55,7 +55,7 @@ function PasskeyModal(props) {
       vault: safe.id,
       folder: item.folder || 0,
       entryID: item._id,
-      expectedRevision: item.revision || 0,
+      // expectedRevision: item.revision || 0,
       encrypted_data: encryptedData,
     });
   };

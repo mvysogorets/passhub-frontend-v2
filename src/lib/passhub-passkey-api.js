@@ -177,7 +177,7 @@ async function incrementPasskeyCounter(entryId) {
                 iv: saved.iv,
                 data: saved.data,
                 tag: saved.tag,
-                revision: saved.revision,
+                // revision: saved.revision,
                 lastModified: saved.lastModified,
                 version: saved.version,
             });

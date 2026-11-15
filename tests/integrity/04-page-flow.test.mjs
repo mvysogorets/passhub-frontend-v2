@@ -6,7 +6,6 @@ import nodeCrypto from 'node:crypto';
 import { importFrontend, runInSandbox, windowOf, b64u, fromB64u, sha256, parseAuthData } from './helpers.mjs';
 
 const { default: PG } = await importFrontend('src/lib/passkey-generator.js');
-const safeKey = String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)));
 const ORIGIN = 'https://rp.example.com';
 
 function makePage() {
@@ -127,7 +126,7 @@ test('create(): full registration through PassHub yields a credential an RP can 
   const d = (await p.nextChooser()).data;
 
   // PassHub side
-  const [, response] = await PG.createPasskey({ url: d.url, options: d.options }, safeKey);
+  const [, response] = await PG.createPasskey({ url: d.url, options: d.options });
   p.fromBackground({ id: 'passkey-create-response', requestId: d.requestId, response });
 
   const cred = await pending;
@@ -168,7 +167,7 @@ test('get(): full authentication through PassHub yields a verifiable assertion',
     url: ORIGIN, options: { origin: ORIGIN, publicKey: {
       rp: { id: 'example.com', name: 'Example' }, user: { id: b64u(crypto.getRandomValues(new Uint8Array(16))), name: 'a', displayName: 'a' },
       challenge: b64u(crypto.getRandomValues(new Uint8Array(32))), pubKeyCredParams: [{ type: 'public-key', alg: -7 }] } },
-  }, safeKey);
+  });
   const passkey = { ...item.passkey, counter: 1 };
 
   for (const withAllowList of [true, false]) {
@@ -183,7 +182,7 @@ test('get(): full authentication through PassHub yields a verifiable assertion',
     assert.equal(d.options.publicKey.rpId, 'example.com');
     assert.equal(d.options.publicKey.allowCredentials.length, withAllowList ? 1 : 0);
 
-    const assertion = await PG.usePasskey(passkey, PG.base64UrlToArrayBuffer(d.options.publicKey.challenge), safeKey,
+    const assertion = await PG.usePasskey(passkey, PG.base64UrlToArrayBuffer(d.options.publicKey.challenge),
       { origin: d.options.origin, rpId: 'example.com' });
     p.fromBackground({ id: 'passkey-get-response', requestId: d.requestId, assertion });
     const cred = await pending;

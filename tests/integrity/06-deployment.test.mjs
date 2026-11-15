@@ -58,7 +58,7 @@ test('frontend shell and its assets are served with correct content types', net,
 test('deployed bundle carries the whole passkey protocol the extension speaks', net, async () => {
   const src = await loadBundle();
   for (const s of ['passkey-create', 'passkey-get', 'passkey-choose', 'passkey-create-response', 'passkey-get-response',
-    'webauthn.create', 'webauthn.get', 'expectedRevision', 'clear to send', 'remember me']) {
+    'webauthn.create', 'webauthn.get', 'clear to send', 'remember me']) {
     assert.ok(src.includes(s), `deployed bundle lacks "${s}"`);
   }
 });

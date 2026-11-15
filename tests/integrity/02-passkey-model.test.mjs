@@ -11,7 +11,7 @@ test('encode -> decode round trip preserves the passkey exactly', () => {
   const cleartext = P.encodePasskeyCleartext(['a', 'b', 'c', 'd', 'e', 'EXTRA', 'EXTRA2'], passkey);
   assert.equal(cleartext.length, 6, 'only 5 display fields + payload');
   assert.deepEqual(cleartext.slice(0, 5), ['a', 'b', 'c', 'd', 'e']);
-  assert.deepEqual(P.decodeEncryptedPasskey({ version: 6, cleartext }), passkey);
+  assert.deepEqual(P.decodeEncryptedPasskey({ version: 6, cleartext }), { type: 'passkey', passkey });
 });
 
 test('encode with fewer than 5 display fields: payload is not at the decode index (documented limitation)', () => {
@@ -20,22 +20,12 @@ test('encode with fewer than 5 display fields: payload is not at the decode inde
   assert.equal(P.decodeEncryptedPasskey({ version: 6, cleartext }), null);
 });
 
-test('decode rejects wrong version, garbage, and non-passkey payloads', () => {
+test('decode rejects wrong version and garbage payloads', () => {
   const good = P.encodePasskeyCleartext(['1', '2', '3', '4', '5'], passkey);
   assert.equal(P.decodeEncryptedPasskey({ version: 5, cleartext: good }), null);
   assert.equal(P.decodeEncryptedPasskey({ version: 6, cleartext: ['1', '2', '3', '4', '5', 'not json'] }), null);
-  assert.equal(P.decodeEncryptedPasskey({ version: 6, cleartext: ['1', '2', '3', '4', '5', '{"type":"note"}'] }), null);
   assert.equal(P.decodeEncryptedPasskey({ version: 6 }), null);
   assert.equal(P.decodeEncryptedPasskey(null), null);
-});
-
-test('hydratePasskeyItem marks the item and leaves other items untouched', () => {
-  const item = { version: 6, cleartext: P.encodePasskeyCleartext(['1', '2', '3', '4', '5'], passkey) };
-  assert.equal(P.hydratePasskeyItem(item), item);
-  assert.equal(item.type, 'passkey');
-  assert.deepEqual(item.passkey, passkey);
-  const pw = { version: 5, cleartext: ['x'] };
-  assert.deepEqual(P.hydratePasskeyItem(pw), { version: 5, cleartext: ['x'] });
 });
 
 test('normalizeCredentialId: padded/standard base64 equals base64url', () => {

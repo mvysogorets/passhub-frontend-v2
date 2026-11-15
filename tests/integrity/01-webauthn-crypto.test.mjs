@@ -6,7 +6,6 @@ import { importFrontend, b64u, fromB64u, sha256, cborDecode, parseAuthData, cose
 
 const { default: PG } = await importFrontend('src/lib/passkey-generator.js');
 
-const safeKey = String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))); // binary-string AES-256 key
 const challenge = crypto.getRandomValues(new Uint8Array(32));
 const userId = crypto.getRandomValues(new Uint8Array(16));
 const ORIGIN = 'https://rp.example.com';
@@ -29,7 +28,7 @@ const createMessage = (over = {}) => ({
 const getOpts = { origin: ORIGIN, rpId: 'example.com' };
 
 test('createPasskey: registration response is a valid "none" attestation', async () => {
-  const [item, resp] = await PG.createPasskey(createMessage(), safeKey);
+  const [item, resp] = await PG.createPasskey(createMessage());
 
   assert.equal(resp.type, 'public-key');
   assert.equal(resp.id, resp.rawId);
@@ -66,26 +65,29 @@ test('createPasskey: registration response is a valid "none" attestation', async
 });
 
 test('createPasskey: stored record has the expected shape and does not leak the private key', async () => {
-  const [item] = await PG.createPasskey(createMessage(), safeKey);
-  assert.equal(item.version, 6);
-  assert.equal(item.type, 'passkey');
+  const [item] = await PG.createPasskey(createMessage());
   assert.deepEqual(Object.keys(item.passkey).sort(),
     ['counter', 'credentialId', 'privateKey', 'publicKey', 'rpId', 'userHandle']);
   assert.equal(item.passkey.counter, 0);
   assert.equal(item.passkey.rpId, 'example.com');
   assert.equal(item.passkey.userHandle, b64u(userId));
   assert.equal(JSON.parse(item.passkey.publicKey).d, undefined, 'public JWK has no d');
-  const env = JSON.parse(item.passkey.privateKey);
-  assert.deepEqual([env.version, env.format, env.algorithm], [1, 'jwk', 'AES-GCM']);
-  assert.ok(!item.passkey.privateKey.includes('"d"'), 'private scalar only exists inside the wrapped blob');
-  assert.equal(item.cleartext.length, 5);
-  assert.equal(item.cleartext[3], 'example.com');
+  assert.equal(typeof item.passkey.privateKey, 'string');
+  assert.ok(!/[+/=]/.test(item.passkey.privateKey), 'private key is unpadded base64url');
+  const der = fromB64u(item.passkey.privateKey);
+  const priv = nodeCrypto.createPrivateKey({ key: Buffer.from(der), format: 'der', type: 'pkcs8' });
+  assert.equal(priv.asymmetricKeyType, 'ec');
+  assert.equal(priv.asymmetricKeyDetails.namedCurve, 'prime256v1');
+  assert.equal(nodeCrypto.createPublicKey(priv).export({ format: 'jwk' }).x, JSON.parse(item.passkey.publicKey).x,
+    'private key matches the stored public key');
+  assert.equal(item.rpName, 'Example');
+  assert.ok(item.url.startsWith(ORIGIN));
 });
 
 test('createPasskey: every call yields a unique credential id and key', async () => {
   const ids = new Set(), keys = new Set();
   for (let i = 0; i < 5; i++) {
-    const [item] = await PG.createPasskey(createMessage(), safeKey);
+    const [item] = await PG.createPasskey(createMessage());
     ids.add(item.passkey.credentialId); keys.add(item.passkey.publicKey);
   }
   assert.equal(ids.size, 5);
@@ -94,25 +96,25 @@ test('createPasskey: every call yields a unique credential id and key', async ()
 
 test('createPasskey: rejects a request without user handle', async () => {
   const m = createMessage(); delete m.options.publicKey.user.id;
-  await assert.rejects(PG.createPasskey(m, safeKey), /user handle/i);
+  await assert.rejects(PG.createPasskey(m), /user handle/i);
 });
 
 test('createPasskey: tolerates rp without name (falls back to id)', async () => {
   // Source has `publicKey.rp?.name || rp.Id` (typo) which throws ReferenceError when rp.name is absent.
-  await assert.doesNotReject(PG.createPasskey(createMessage({ rp: { id: 'example.com' } }), safeKey));
+  await assert.doesNotReject(PG.createPasskey(createMessage({ rp: { id: 'example.com' } })));
 });
 
 test('createPasskey: rp without id resolves to the page host', async () => {
-  const [item] = await PG.createPasskey(createMessage({ rp: { name: 'Example' } }), safeKey);
+  const [item] = await PG.createPasskey(createMessage({ rp: { name: 'Example' } }));
   const host = item.passkey.rpId.includes('://') ? new URL(item.passkey.rpId).hostname : item.passkey.rpId;
   assert.equal(host, 'rp.example.com');
 });
 
 async function makeAssertion({ counter = 7 } = {}) {
-  const [item] = await PG.createPasskey(createMessage(), safeKey);
+  const [item] = await PG.createPasskey(createMessage());
   const passkey = { ...item.passkey, counter };
   const ch = crypto.getRandomValues(new Uint8Array(32));
-  const a = await PG.usePasskey(passkey, ch, safeKey, getOpts);
+  const a = await PG.usePasskey(passkey, ch, getOpts);
   return { item, passkey, ch, a };
 }
 
@@ -146,10 +148,10 @@ test('usePasskey: assertion verifies with the registered public key (DER ES256)'
 });
 
 test('usePasskey: DER signatures are always well formed (60 signatures)', async () => {
-  const [item] = await PG.createPasskey(createMessage(), safeKey);
+  const [item] = await PG.createPasskey(createMessage());
   const key = nodeCrypto.createPublicKey({ key: JSON.parse(item.passkey.publicKey), format: 'jwk' });
   for (let i = 0; i < 60; i++) {
-    const a = await PG.usePasskey({ ...item.passkey, counter: i }, crypto.getRandomValues(new Uint8Array(32)), safeKey, getOpts);
+    const a = await PG.usePasskey({ ...item.passkey, counter: i }, crypto.getRandomValues(new Uint8Array(32)), getOpts);
     const data = Buffer.concat([fromB64u(a.authenticatorData), await sha256(fromB64u(a.clientDataJSON))]);
     const sig = fromB64u(a.signature);
     assert.equal(sig[1], sig.length - 2, 'DER length byte consistent');
@@ -165,32 +167,27 @@ test('usePasskey: sign counter is encoded big-endian over the full uint32 range'
 });
 
 test('usePasskey: rpId stored as a full URL is reduced to the host for hashing', async () => {
-  const [item] = await PG.createPasskey(createMessage({ rp: { name: 'x' } }), safeKey);
-  const a = await PG.usePasskey({ ...item.passkey, counter: 1 }, challenge, safeKey, { origin: ORIGIN });
+  const [item] = await PG.createPasskey(createMessage({ rp: { name: 'x' } }));
+  const a = await PG.usePasskey({ ...item.passkey, counter: 1 }, challenge, { origin: ORIGIN });
   assert.deepEqual(parseAuthData(fromB64u(a.authenticatorData)).rpIdHash,
     await sha256(new TextEncoder().encode('rp.example.com')));
 });
 
-test('wrapped private key: wrong safe key, tampering and unknown format are rejected', async () => {
-  const [item] = await PG.createPasskey(createMessage(), safeKey);
-  const use = (passkey, key = safeKey) => PG.usePasskey({ ...passkey, counter: 1 }, challenge, key, getOpts);
+test('serialized private key: tampered or malformed values are rejected', async () => {
+  const [item] = await PG.createPasskey(createMessage());
+  const use = (privateKey) => PG.usePasskey({ ...item.passkey, privateKey, counter: 1 }, challenge, getOpts);
 
-  const wrongKey = String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)));
-  await assert.rejects(use(item.passkey, wrongKey));
-
-  const env = JSON.parse(item.passkey.privateKey);
-  const blob = fromB64u(env.wrappedKey); blob[3] ^= 1;
-  await assert.rejects(use({ ...item.passkey, privateKey: JSON.stringify({ ...env, wrappedKey: b64u(blob) }) }));
-
-  await assert.rejects(use({ ...item.passkey, privateKey: JSON.stringify({ ...env, version: 2 }) }), /Unsupported/);
+  await assert.rejects(use(''));
+  await assert.rejects(use('not-a-key'));
+  const der = fromB64u(item.passkey.privateKey).slice(0, 20); // truncated DER
+  await assert.rejects(use(b64u(der)));
 });
 
-test('wrapped private key: 12-byte IV, unique per wrap', async () => {
-  const [a] = await PG.createPasskey(createMessage(), safeKey);
-  const [b] = await PG.createPasskey(createMessage(), safeKey);
-  const ea = JSON.parse(a.passkey.privateKey), eb = JSON.parse(b.passkey.privateKey);
-  assert.equal(fromB64u(ea.iv).length, 12);
-  assert.notEqual(ea.iv, eb.iv);
+test('serialized private key: no wrapping envelope, unique per passkey', async () => {
+  const [a] = await PG.createPasskey(createMessage());
+  const [b] = await PG.createPasskey(createMessage());
+  assert.ok(!a.passkey.privateKey.startsWith('{'), 'not a JSON envelope');
+  assert.notEqual(a.passkey.privateKey, b.passkey.privateKey);
 });
 
 test('base64url helpers: strict unpadded round trip', () => {

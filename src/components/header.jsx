@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 import Row from "react-bootstrap/Row";
@@ -30,6 +30,8 @@ function Header(props) {
         plan: "FREE",
         totalStotrage: 1024 * 1024 * 10,
     };
+
+    const queryClient = useQueryClient();
 
     const [showModal, setShowModal] = useState("");
     const [accountData, setAccountData] = useState(mockAccountData);
@@ -177,6 +179,18 @@ function Header(props) {
                             desktop={true}
                             page={props.page}
                         />
+
+                        {props.page == "Iam" && (
+                            <div
+                                onClick={() => queryClient.invalidateQueries({ queryKey: ["userList"], exact: true })}
+                                title="Reload"
+                                style={{ cursor: "pointer", marginLeft: "auto", marginRight: 16, marginTop: 6 }}
+                            >
+                                <svg width="24" height="24" style={{ fill: "white", color: "white" }}>
+                                    <use href="#arrow-clockwise"></use>
+                                </svg>
+                            </div>
+                        )}
 
                         {((props.page == "Iam") || (props.page == "Msp")) && (
                             <div onClick={props.gotoMain} style={{ cursor: "pointer" }}>

@@ -22,6 +22,7 @@ export default function UserPane(props) {
     const [searchString, setSearchString] = useState("");
     const [errorMsg, setErrorMsg] = useState("");
     const [email, setEmail] = useState("");
+    const [inviteAsAdmin, setInviteAsAdmin] = useState(false);
 
     const queryClient = useQueryClient();
 
@@ -33,6 +34,7 @@ export default function UserPane(props) {
             verifier: getVerifier(),
             operation: "newuser",
             email: email.trim(),
+            admin: inviteAsAdmin,
         };
         if (props.company) {
             args.company = props.company._id;
@@ -45,6 +47,7 @@ export default function UserPane(props) {
 
                 if (result.status === "Ok") {
                     setEmail("");
+                    setInviteAsAdmin(false);
                     setErrorMsg("");
                     return "Ok";
                 }
@@ -205,6 +208,14 @@ export default function UserPane(props) {
                                     onKeyDown={inputOnKeyDown}
                                     value={email}
                                 />
+                                <label style={{ display: "flex", gap: 6, alignItems: "center", margin: 0, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={inviteAsAdmin}
+                                        onChange={(e) => setInviteAsAdmin(e.target.checked)}
+                                    />
+                                    Admin
+                                </label>
                                 <Button className="d-none d-lg-block" style={{ margin: 0 }} onClick={submitEmail}>Add User</Button>
                             </>
                         )}

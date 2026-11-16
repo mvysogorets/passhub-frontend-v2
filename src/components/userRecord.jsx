@@ -54,15 +54,21 @@ function UserRecord(props) {
   };
 
   let user = props.user;
-
   let role = "active";
-  if (user.disabled) {
-    role = "disabled";
-  } else if (user.site_admin) {
-    role = "admin";
-  } else if (!user._id) {
+
+  if (user?.status == "invited") {
     role = "invited";
+    if (user.site_admin) {
+      role = "admin invited"
+    }
+  } else {
+    if (user.disabled) {
+      role = "disabled";
+    } else if (user.site_admin) {
+      role = "admin";
+    }
   }
+
 
   const id = btoa(user.mail).replace(/=/g, "");
 
@@ -86,7 +92,7 @@ function UserRecord(props) {
       </tr>
     );
   }
-  if (role === "invited") {
+  if ((role === "invited") || (role === "admin invited")) {
     return (
       <tr>
         <td className="email" style={{ cursor: "pointer" }} onClick={() => {
@@ -114,7 +120,7 @@ function UserRecord(props) {
                     margin: 0,
                   }}
                 >
-                  authorized
+                  {role}
                 </Dropdown.Toggle>
                 <Dropdown.Menu align="left">
                   <Dropdown.Item eventKey="remove" style={{ color: "red" }}>remove</Dropdown.Item>

@@ -2,6 +2,8 @@ import React, { useRef, useEffect } from "react";
 
 import { saveAs } from "file-saver";
 
+const IFRAME_EXTS = ["pdf", "txt", "csv", "json", "js", "md", "css", "properties"];
+
 function ViewFile(props) {
 
   if (!props.show) {
@@ -32,7 +34,7 @@ function ViewFile(props) {
   // const componentDidUpdate = () => {
   const drawIFrame = () => {
     if (props.show) {
-      if (["pdf", "txt", "csv", "json", "js", "md", "css"].includes(ext)) {
+      if (IFRAME_EXTS.includes(ext)) {
         const obj_url = URL.createObjectURL(props.blob);
         iframeRef.current.setAttribute("src", obj_url);
         URL.revokeObjectURL(obj_url);
@@ -124,7 +126,7 @@ function ViewFile(props) {
           </button>
         )}
       </div>
-      {["pdf", "txt", "csv", "json", "js", "md", "css"].includes(ext) ? (
+      {IFRAME_EXTS.includes(ext) ? (
         < div
           className="img-frame"
           style={{ flexGrow: 1, background: (ext == "pdf") ? "none" : "white" }}

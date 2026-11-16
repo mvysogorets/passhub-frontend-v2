@@ -52,6 +52,7 @@ function getMimeByExt(filename) {
     tif: "image/tiff",
     tiff: "image/tiff",
     txt: "text/plain",
+    properties: "text/plain",
     xls: "application/vnd.ms-excel",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     zip: "application/zip",
@@ -85,7 +86,7 @@ function isFileViewable(filename) {
       }
       return true;
     }
-    if (["txt", "md", "css", "js", "json", "svg", "jpeg", "jpg", "png", "gif", "bmp", "webp"].includes(ext)) {
+    if (["txt", "md", "css", "js", "json", "svg", "jpeg", "jpg", "png", "gif", "bmp", "webp", "properties"].includes(ext)) {
       return true;
     }
   }

@@ -387,17 +387,32 @@ async function createPasskeyCreateResponse(passkey, options) {
     };
     const clientDataJSON = new TextEncoder().encode(JSON.stringify(clientData));
 
+    // SPKI DER public key, needed for AuthenticatorAttestationResponse.getPublicKey()
+    const spki = await crypto.subtle.exportKey(
+        'spki',
+        await crypto.subtle.importKey(
+            'jwk',
+            { kty: publicKeyJwk.kty, crv: publicKeyJwk.crv, x: publicKeyJwk.x, y: publicKeyJwk.y, ext: true },
+            { name: 'ECDSA', namedCurve: 'P-256' },
+            true,
+            ['verify']
+        )
+    );
+
     return {
         id: passkey.credentialId,
         rawId: passkey.credentialId,
         response: {
             attestationObject: createAttestationObject(authenticatorData),
-            clientDataJSON: arrayBufferToBase64Url(clientDataJSON)
+            clientDataJSON: arrayBufferToBase64Url(clientDataJSON),
+            authenticatorData: arrayBufferToBase64Url(authenticatorData),
+            publicKey: arrayBufferToBase64Url(spki),
+            publicKeyAlgorithm: -7
         },
         type: 'public-key'
     };
     /*
-    
+
         return {
             credentialId: passkey.credentialId,
             attestationObject: createAttestationObject(authenticatorData),

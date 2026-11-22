@@ -107,7 +107,7 @@ function doMove(safes, targetNode, item, operation) {
   let options = {};
   if (item.note) {
     options["note"] = item.note;
-  } else if (item.version === 5) {
+  } else if ((item.version === 5) || (item.version === 6)) {
     options["version"] = item.version;
   }
   let eItem = passhubCrypto.encryptItem(

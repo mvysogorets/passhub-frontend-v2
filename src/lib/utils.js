@@ -298,7 +298,6 @@ function atStorageLimits() {
   return s >= account.maxStorage;
 }
 
-
 let pasteTimestamp = 0
 const setPasteTimestamp = (ts) => { pasteTimestamp = ts; }
 
@@ -338,10 +337,6 @@ function isPasswordItem(item) {
   return !item.note && !item.file && item.version !== 5 && item.version !== 6;
 }
 
-function isPasskeyItem(item) {
-  return item.version === 6 && item.type === "passkey";
-}
-
 function isFileItem(item) {
   return item.file ? true : false;
 }
@@ -358,6 +353,9 @@ function isNoteItem(item) {
   return item.note ? true : false;
 }
 
+function isPasskeyItem(item) {
+  return (item.version == 6);
+}
 
 const limits = { MAX_TITLE_LENGTH: 50, MAX_NOTE_LENGTH: 10000, MAX_USERNAME_LENGTH: 100, MAX_PASSWORD_LENGTH: 100, MAX_URL_LENGTH: 2048, MAX_TOTP_LENGTH: 2048 };
 
@@ -415,5 +413,4 @@ export {
   isAddressItem,
   isPasskeyItem,
   isNoteItem,
-
 };

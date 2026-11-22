@@ -3,10 +3,12 @@ import {
   isPasswordItem,
   isFileItem,
   isBankCardItem,
+  isPasskeyItem,
   isNoteItem,
 } from "./utils";
 
 import { getTOTP, getTOTP2 } from "./totp";
+import { decodeEncryptedPasskey, normalizeCredentialId } from "./passkey";
 
 
 const paymentCards = () => {
@@ -93,7 +95,85 @@ function hostInItem(hostname, item) {
   return false
 }
 
+// rpId may be stored as a bare domain or (when created without rp.id) as a full URL
+function rpIdToHost(rpId) {
+  let s = String(rpId || "").trim().toLowerCase();
+  if (!s) return "";
+  if (s.includes("://")) {
+    try {
+      s = new URL(s).hostname;
+    } catch (_e) {
+      return "";
+    }
+  }
+  return s;
+}
+
+// WebAuthn: the request rpId must equal the page host or be its registrable suffix
+function rpIdMatches(storedRpId, requestedRpId) {
+  const stored = rpIdToHost(storedRpId);
+  const requested = rpIdToHost(requestedRpId);
+  return stored !== "" && stored === requested;
+}
+
+// "passkey-get": return passkeys usable for message.options.publicKey (rpId, allowCredentials)
+function passkeySearch(what) {
+  const publicKey = what.options?.publicKey || {};
+  let rpId = publicKey.rpId;
+  if (!rpId && what.url) {
+    try {
+      rpId = new URL(what.url).hostname;
+    } catch (_e) { /* ignore */ }
+  }
+
+  const allowed = new Set(
+    (publicKey.allowCredentials || [])
+      .filter((c) => c && (!c.type || c.type === "public-key"))
+      .map((c) => normalizeCredentialId(c.id))
+      .filter(Boolean)
+  );
+
+
+  const found = [];
+  try {
+    if (rpId) {
+      for (const safe of getUserData().safes) {
+        if (!safe.key) continue; // not confirmed
+        for (const item of safe.rawItems) {
+          if (isPasskeyItem(item)) {
+            const passkey = JSON.parse(item.cleartext[5]);
+            if (!passkey || !rpIdMatches(passkey.rpId, rpId)) continue;
+            if (allowed.size && !allowed.has(normalizeCredentialId(passkey.credentialId))) continue;
+            found.push({
+              safe: safe.name,
+              title: item.cleartext[0],
+              username: item.cleartext[2],
+              item,
+              //              safeKey: safe.bstringKey,
+              passkey
+
+              //          passkey,
+            });
+
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("passkey search failed:", error);
+  }
+
+
+
+
+  return { id: "passkey-get-response", rpId, found };
+}
+
 async function advise(what) {
+  if (what.id === "passkey-get") {
+    return passkeySearch(what);
+  }
+
   if (what.id === "payment page") {
     return paymentCards();
   }

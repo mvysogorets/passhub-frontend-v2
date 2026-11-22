@@ -8,7 +8,17 @@
  * @license MIT
  */
 
-import PasskeyGenerator from "lib/passkey-generator";
+import axios from "axios";
+import { parse as parseTld } from "tldts";
+
+import PasskeyGenerator from "./passkey-generator";
+import { b64ToAb, decodeItem, encryptAesKey, encryptItem } from "./crypto";
+import { decodeEncryptedPasskey, encodePasskeyCleartext, isDirectWritableSafe } from "./passkey";
+import { getUserData } from "./userData";
+import { advise } from "./search";
+import { getApiUrl, getVerifier } from "../lib/utils";
+
+const PASSKEY_PAYLOAD_INDEX = 5;
 
 
 'use strict';
@@ -16,401 +26,410 @@ import PasskeyGenerator from "lib/passkey-generator";
 /**
 * API for working with passkeys.
  */
-const PassHubPasskeyAPI = {
-    /**
-     * Get the CSRF token (verifier).
-     * @private
-     */
-    _getVerifier() {
-        const csrfElement = document.getElementById("csrf");
-        return csrfElement ? csrfElement.getAttribute("data-csrf") : '';
-    },
 
-    /**
-* Create a new passkey.
-* 
-* @param {Object} options - Creation parameters
-* @param {string} options.rpId - Relying Party ID (site domain)
-* @param {string} options.userName - User name
-* @param {string} options.userDisplayName - Display name
-* @param {string} options.siteName - Optional site name
-* @param {Function} options.encryptFn - Optional encryption function
-* @returns {Promise<Object>} Created passkey
+/*
+async function create(message, aesKey) {
+    const [passkey, passkeyCreateResponse] = await PasskeyGenerator.createPasskey(message);
+    console.log('39 passkey', passkey);
+    const encodedPasskey = encodePasskeyCleartext(passkey.cleartext, passkey.passkey);
+    console.log('41 ', encodedPasskey);
+    const encryptedPasskey = encryptItem(
+        encodedPasskey,
+        aesKey,
+        {
+            version: 6,
+        }
+    );
+    return [encryptedPasskey, passkeyCreateResponse];
+}
+
 */
-    async createPasskey(options) {
-        try {
-            const result = await savePasskeyInReact(options);
-            return result.passkey;
 
-        } catch (error) {
-            console.error('Error creating passkey:', error);
-            throw error;
+
+// Ask the extension to show a popup with the candidates; resolves to the chosen index or null.
+// Secrets (passkey, safeKey, item) are never sent, only display fields.
+async function chooseFound(found, rpId, askExtension) {
+    //    if (found.length === 1) return 0;
+    if (!askExtension) return 0; // no way to ask: fall back to the first one
+    const candidates = found.map((f, index) => ({
+        index,
+        origin: f.passkey?.rpId || rpId,
+        username: f.username,
+        title: f.title,
+        safe: f.safe,
+    }));
+    const reply = await askExtension({ id: "passkey-choose", rpId, candidates });
+    if (!reply || reply.cancelled || reply.error) return null;
+    const idx = Number(reply.index);
+    return Number.isInteger(idx) && idx >= 0 && idx < found.length ? idx : null;
+}
+
+// Let the user pick the location (a safe or a folder of a safe) for a new passkey in the extension popup.
+// Resolves to { safe, folder } (folder is the folder id, 0 for the safe root) or null.
+// Only names and the tree structure are sent to the extension, never keys.
+async function chooseLocation(askExtension) {
+    const safes = (getUserData().safes || []).filter(isDirectWritableSafe);
+    if (safes.length === 0) return null;
+
+    const locations = []; // index -> { safe, folder }
+    const candidates = []; // flat tree: parent is an index in candidates or -1
+    const addFolders = (safe, folders, parent) => {
+        for (const f of folders || []) {
+            const index = candidates.length;
+            candidates.push({ index, name: f.name, parent });
+            locations.push({ safe, folder: f.id });
+            addFolders(safe, f.folders, index);
         }
-    },
+    };
+    for (const safe of safes) {
+        const index = candidates.length;
+        candidates.push({ index, name: safe.name, parent: -1, isSafe: true });
+        locations.push({ safe, folder: 0 });
+        addFolders(safe, safe.folders, index);
+    }
 
-    /**
-     * Get the passkeys for a domain.
-     * 
-     * @param {string} rpId - Relying Party ID (domain)
-     * @returns {Promise<Array>} Passkey list
-     */
-    async getPasskeys(rpId) {
-        try {
-            const response = await fetch('/passkey_ops.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    verifier: this._getVerifier(),
-                    operation: 'getPasskeysForRpId',
-                    rpId: rpId
-                })
-            });
+    if (candidates.length === 1 || !askExtension) return locations[0];
 
-            const data = await response.json();
+    const reply = await askExtension({
+        id: "passkey-choose",
+        title: "Choose where to save the new passkey",
+        tree: true,
+        candidates,
+    });
+    if (!reply || reply.cancelled || reply.error) return null;
+    const idx = Number(reply.index);
+    return Number.isInteger(idx) && idx >= 0 && idx < locations.length ? locations[idx] : null;
+}
 
-            if (data.status === 'Ok') {
-                console.log(`Found ${data.passkeys.length} passkeys for ${rpId}`);
-                return data.passkeys;
-            } else {
-                throw new Error(data.status || 'Failed to get passkeys');
-            }
-
-        } catch (error) {
-            console.error('Error getting passkeys:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Use a passkey for authentication.
-     * 
-     * @param {Object} options - Usage parameters
-     * @param {string} options.credentialId - ID credential
-     * @param {string} options.privateKey - Private key
-     * @param {ArrayBuffer} options.challenge - Server challenge
-     * @param {string} options.rpId - Relying Party ID
-     * @returns {Promise<Object>} Signed authentication data
-     */
-    async usePasskey(options) {
-        try {
-            const { credentialId, privateKey, challenge, rpId } = options;
-
-            // Use the passkey through PasskeyGenerator.
-            const authData = await PasskeyGenerator.usePasskey({
-                credentialId,
-                privateKey,
-                challenge,
-                rpId
-            });
-
-            console.log('Passkey used successfully');
-            return authData;
-
-        } catch (error) {
-            console.error('Error using passkey:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Get the safe list.
-     * 
-     * @returns {Promise<Array>} User safe list
-     */
-    async getSafeList() {
-        try {
-            // Use the existing global PassHub object.
-            if (window.PassHub && window.PassHub.getSafeList) {
-                return window.PassHub.getSafeList();
-            }
-
-            // Otherwise, retrieve it through the API.
-            console.warn('PassHub.getSafeList not available, returning empty array');
-            return [];
-
-        } catch (error) {
-            console.error('Error getting safe list:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Get passkey statistics.
-     * 
-     * @returns {Promise<Object>} Statistics
-     */
-    async getStats() {
-        try {
-            const response = await fetch('/passkey_ops.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    verifier: this._getVerifier(),
-                    operation: 'getStats'
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'Ok') {
-                console.log('Passkey stats:', data);
-                return data;
-            } else {
-                throw new Error(data.status || 'Failed to get stats');
-            }
-
-        } catch (error) {
-            console.error('Error getting stats:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Increment the passkey usage counter.
-     * 
-     * @param {string} credentialId - ID credential
-     * @returns {Promise<boolean>} Whether the operation succeeded
-     */
-    async incrementCounter(itemId) {
-        try {
-            const response = await fetch('/passkey_ops.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    operation: 'incrementCounter',
-                    verifier: this._getVerifier(),
-                    itemId
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'Ok') {
-                console.log('Counter incremented for', itemId);
-                return true;
-            } else {
-                throw new Error(data.status || 'Failed to increment counter');
-            }
-
-        } catch (error) {
-            console.error('Error incrementing counter:', error);
-            throw error;
+// Find an item (by id) and its safe in the current userData.
+function findItem(entryId) {
+    for (const safe of getUserData().safes || []) {
+        if (!safe.key) continue;
+        for (const item of safe.rawItems || []) {
+            if (String(item._id) === String(entryId)) return { safe, item };
         }
     }
-};
+    return null;
+}
 
-function savePasskeyInReact(options) {
-    return new Promise((resolve, reject) => {
-        const requestId = crypto.randomUUID();
-        const timeoutId = window.setTimeout(() => {
-            window.removeEventListener('message', responseHandler);
-            reject(new Error('Passkey save timed out'));
-        }, 55000);
-
-        const responseHandler = (event) => {
-            if (event.source !== window || event.origin !== window.location.origin) return;
-            if (event.data?.type !== 'passhub-react-save-passkey-response') return;
-            if (event.data.requestId !== requestId) return;
-
-            window.clearTimeout(timeoutId);
-            window.removeEventListener('message', responseHandler);
-            const result = event.data.result;
-            if (result?.success) {
-                resolve(result);
-            } else {
-                reject(new Error(result?.error || 'Passkey was not saved'));
-            }
-        };
-
-        window.addEventListener('message', responseHandler);
-        window.postMessage({
-            type: 'passhub-react-save-passkey-request',
-            requestId,
-            options
-        }, window.location.origin);
+// Read ONE item from the server (not the whole user data) and decode it with the safe key.
+async function readItem(safe, entryId) {
+    const response = await axios.post(`${getApiUrl()}items.php`, {
+        verifier: getVerifier(),
+        vault: safe.id,
+        read: true,
+        entryID: entryId,
     });
-}
-
-function resolvePasskeyInReact(passkeys, allowCredentialIds, requestData) {
-    return new Promise((resolve, reject) => {
-        const requestId = crypto.randomUUID();
-        const timeoutId = window.setTimeout(() => {
-            window.removeEventListener('message', responseHandler);
-            reject(new Error('Passkey unlock timed out'));
-        }, 55000);
-
-        const responseHandler = (event) => {
-            if (event.source !== window || event.origin !== window.location.origin) return;
-            if (event.data?.type !== 'passhub-react-resolve-passkey-response') return;
-            if (event.data.requestId !== requestId) return;
-
-            window.clearTimeout(timeoutId);
-            window.removeEventListener('message', responseHandler);
-            const result = event.data.result;
-            if (result?.success) {
-                resolve(result);
-            } else {
-                reject(new Error(result?.error || 'Passkey could not be opened'));
-            }
-        };
-
-        window.addEventListener('message', responseHandler);
-        window.postMessage({
-            type: 'passhub-react-resolve-passkey-request',
-            requestId,
-            passkeys,
-            allowCredentialIds,
-            challenge: requestData.challenge,
-            origin: requestData.origin,
-            rpId: requestData.rpId,
-            userVerification: requestData.userVerification
-        }, window.location.origin);
-    });
-}
-
-/**
-* Convert a PassHub passkey to WebAuthn credential format.
-* @param {Object} passkeyData - PassHub passkey object
-* @param {Object} originalOptions - Original publicKey options
- * @returns {Object} WebAuthn credential
- 
-    * Not used because PasskeyGenerator.createCredentialForSite is now used instead.
-*/
-function convertToWebAuthnCredential(passkeyData, originalOptions) {
-    const { passkey } = passkeyData;
-
-    // Decode base64 strings to ArrayBuffers
-    const credentialIdBuffer = base64ToArrayBuffer(passkey.credentialId);
-    const publicKeyJwk = JSON.parse(passkey.publicKey);
-
-    // Build attestation object (simplified for now)
-    const attestationObject = {
-        fmt: 'none',
-        authData: new Uint8Array(37), // Minimal authData
-        attStmt: {}
-    };
-
-    // Build client data JSON
-    const clientData = {
-        type: 'webauthn.create',
-        challenge: originalOptions?.challenge || '',
-        origin: window.location.origin
-    };
-
-    return {
-        id: passkey.credentialId,
-        rawId: credentialIdBuffer,
-        response: {
-            clientDataJSON: new TextEncoder().encode(JSON.stringify(clientData)),
-            attestationObject: new TextEncoder().encode(JSON.stringify(attestationObject))
-        },
-        type: 'public-key'
-    };
-}
-
-/**
- * Convert base64 to ArrayBuffer
- */
-function base64ToArrayBuffer(base64) {
-    const normalized = base64.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
-    const binary = window.atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
+    const result = response.data;
+    if (result?.status === "login") {
+        window.location.href = "expired.php";
+        throw new Error("PassHub session expired");
     }
-    return bytes.buffer;
+    if (result?.status !== "Ok" || !result.item) {
+        throw new Error(result?.status || "Passkey could not be read");
+    }
+    const item = result.item;
+    decodeItem(item, safe.bstringKey); // adds cleartext and, for passkeys, item.passkey
+    return item;
 }
 
-// Export to window.
-window.PassHubPasskeyAPI = PassHubPasskeyAPI;
-console.log('PassHubPasskeyAPI loaded');
+// Reread the passkey item from the server, increase its counter by one and save it back
+// (compare-and-swap on the item revision, retried if the item changed meanwhile).
+// Returns the passkey with the saved counter: the value to be used in this authentication.
+async function incrementPasskeyCounter(entryId) {
+    const hit = findItem(entryId); // locates the safe (and its key) only, no item data is trusted
+    if (!hit) throw new Error("Passkey not found");
+    const { safe, item: localItem } = hit;
 
-// Extension bridge: listen for requests through window messages.
-window.addEventListener('message', async (event) => {
-    if (event.source !== window || event.origin !== window.location.origin) return;
-    if (!event.data || event.data.type !== 'passhub-passkey-request') return;
+    const item = await readItem(safe, entryId); // fresh item with its current revision
+    const passkey = decodeEncryptedPasskey(item);
+    if (!passkey) throw new Error("Passkey not found");
 
-    const { requestId, id, data } = event.data;
-    let result;
+    const updatedPasskey = { ...passkey, counter: (Number(passkey.counter) || 0) + 1 };
+    const cleartext = (item.cleartext || []).slice(0, 6);
+    cleartext[PASSKEY_PAYLOAD_INDEX] = JSON.stringify(updatedPasskey);
+
+    const aesKey = safe.bstringKey;
+
+    const encryptedPasskeyItem = encryptItem(cleartext, aesKey, { version: 6 });
+
+
+    const response = await axios.post(`${getApiUrl()}items.php`, {
+        verifier: getVerifier(),
+        vault: safe.id,
+        entryID: item._id,
+        folder: item.folder,
+        encrypted_data: encryptedPasskeyItem,
+    });
+    const status = response.data?.status;
+    if (status === "login") {
+        window.location.href = "expired.php";
+        throw new Error("PassHub session expired");
+    }
+    if (status === "Ok") {
+        // keep the in-memory copy consistent with the server
+        const saved = response.data.item;
+
+        if (saved) {
+            Object.assign(localItem, {
+                iv: saved.iv,
+                data: saved.data,
+                tag: saved.tag,
+                // revision: saved.revision,
+                lastModified: saved.lastModified,
+                version: saved.version,
+            });
+            //            localItem.cleartext = encodedCleartext;
+            localItem.passkey = updatedPasskey;
+        }
+        return { passkey: updatedPasskey };
+    }
+    if (status !== "Conflict") {
+        throw new Error(status || "Passkey counter could not be saved");
+    }
+
+    throw new Error("Passkey counter could not be saved (conflict)");
+}
+
+async function get(message, askExtension) {
+    const result = await advise(message);
+    console.log('53 result', result);
+    const { rpId, found } = result;
+    console.log('foundKeys', found);
+    console.log('rpId', rpId);
+
+    if (!found || found.length === 0) {
+        return { id: "passkey-get-response", error: "No matching passkey", errorName: "NotAllowedError" };
+    }
 
     try {
-        if (id === 'passkey-create-request') {
-            // Create a new passkey.
-            console.log('Creating passkey for:', data.rpId);
-
-            const passkeyData = await PassHubPasskeyAPI.createPasskey({
-                rpId: data.rpId,
-                userName: data.userName,
-                userDisplayName: data.userDisplayName,
-                userHandle: data.userHandle,
-                siteName: data.rpName || data.rpId
-            });
-
-            console.log('Passkey created, converting to WebAuthn format');
-
-            // Convert to WebAuthn credential format.
-            // result = {
-            //     credential: convertToWebAuthnCredential(passkeyData, data)
-            // };
-            const credential = await PasskeyGenerator.createCredentialForSite(
-                passkeyData.passkey,
-                {
-                    challenge: data.challenge,
-                    origin: data.origin
-                }
-            );
-
-            result = { credential };
-
-            console.log('Credential converted, sending response');
-            console.log('Dispatching passkey-response event with data:', result);
-
-        } else if (id === 'passkey-get-request') {
-            // Get existing passkeys.
-            console.log('Getting passkeys for:', data.rpId);
-
-            const passkeys = await PassHubPasskeyAPI.getPasskeys(data.rpId);
-            const resolved = await resolvePasskeyInReact(
-                passkeys,
-                (data.allowCredentials || []).map(credential => credential.id),
-                data
-            );
-            await PassHubPasskeyAPI.incrementCounter(resolved.itemId);
-            result = { assertion: resolved.assertion };
-
-            console.log('Passkey assertion created, sending response');
+        const chosen = await chooseFound(found, rpId, askExtension);
+        if (chosen === null) {
+            return { id: "passkey-get-response", error: "Passkey selection cancelled", errorName: "NotAllowedError" };
         }
-
-        // Send the response back to the extension through the bridge.
-        window.postMessage({
-            type: 'passhub-passkey-response',
-            requestId,
-            result
-        }, '*');
-        console.log('passkey-response sent via postMessage');
-
-    } catch (error) {
-        console.error('Error handling passkey request:', error);
-        // Send the error through window.postMessage.
-        window.postMessage({
-            type: 'passhub-passkey-response',
-            requestId,
-            result: {
-                error: error.message
+        // the counter must be stored before the assertion is made
+        const { passkey } = await incrementPasskeyCounter(found[chosen].item._id);
+        const publicKey = message.options.publicKey;
+        const assertion = await PasskeyGenerator.usePasskey(
+            passkey,
+            PasskeyGenerator.base64UrlToArrayBuffer(publicKey.challenge), // base64url -> bytes
+            {
+                origin: message.options.origin,
+                rpId: publicKey.rpId || rpId,
+                userVerification: publicKey.userVerification,
             }
-        }, '*');
+        );
+        // all binary fields are base64url strings
+        return { id: "passkey-get-response", assertion };
+    } catch (e) {
+        console.log('error in get ', e);
+        return { id: "passkey-get-response", error: String(e?.message || e), errorName: "NotAllowedError" };
     }
-});
+}
 
-console.log('Extension bridge listener registered');
+async function savePasskey(safe, encryptedPasskeyItem, folder = 0) {
+    try {
+        const response = await axios.post(`${getApiUrl()}items.php`, {
+            verifier: getVerifier(),
+            vault: safe.id,
+            folder,
+            encrypted_data: encryptedPasskeyItem,
+        });
+        const result = response.data;
+
+        if (result.status === "login") {
+            props.onError("PassHub session expired");
+            window.location.href = "expired.php";
+            return;
+        }
+        if (result.status !== "Ok") {
+            throw new Error(result.status || "Passkey could not be saved");
+        }
+        return result;
+
+    } catch (e) {
+        console.log('79 error ', e)
+    }
+}
 
 
+const isIpHost = (host) => /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
+const isLocalhost = (host) => host === "localhost" || host.endsWith(".localhost");
 
-export PassHubPasskeyAPI;
+// WebAuthn origin check: returns an error string, or null if the origin and the rpId are acceptable.
+// - options.origin must be a valid secure origin (https, or http for localhost/loopback only);
+// - it must match the origin of the page url reported by the extension;
+// - rpId (default: the origin host) must be the origin host or its registrable-domain suffix.
+function verifyPasskeyOrigin(message) {
+    const options = message?.options;
+    const publicKey = options?.publicKey;
+    if (!options || !publicKey || typeof options.origin !== "string") {
+        return "Passkey origin is missing";
+    }
+
+    let origin;
+    try {
+        origin = new URL(options.origin);
+    } catch (e) {
+        return "Passkey origin is invalid";
+    }
+    // must be a bare origin: no credentials, path, query or fragment
+    if (origin.origin !== options.origin.replace(/\/$/, "")) {
+        return "Passkey origin is invalid";
+    }
+    const host = origin.hostname.toLowerCase();
+    const secure =
+        origin.protocol === "https:" ||
+        (origin.protocol === "http:" && (isLocalhost(host) || host === "127.0.0.1" || host === "[::1]"));
+    if (!secure) {
+        return "Passkey origin is not secure";
+    }
+
+    if (message.url) {
+        let pageOrigin;
+        try {
+            pageOrigin = new URL(message.url).origin;
+        } catch (e) {
+            return "Passkey page url is invalid";
+        }
+        if (pageOrigin !== origin.origin) {
+            return "Passkey origin does not match the page url";
+        }
+    }
+
+    const rpId = (message.id === "passkey-create" ? publicKey.rp?.id : publicKey.rpId) ?? host;
+    if (typeof rpId !== "string" || rpId === "") {
+        return "Passkey rpId is invalid";
+    }
+    const rp = rpId.toLowerCase();
+    if (rp !== rpId || rp !== host) {
+        if (isIpHost(host) || isIpHost(rp)) {
+            return "Passkey rpId does not match the origin";
+        }
+        // rpId must be a domain suffix of the host and not a public suffix (com, co.uk, github.io, ...)
+        if (!host.endsWith("." + rp) || !rp.includes(".")) {
+            return "Passkey rpId does not match the origin";
+        }
+        if (!parseTld(rp, { allowPrivateDomains: true }).domain) {
+            return "Passkey rpId is a public suffix";
+        }
+    }
+    return null;
+}
+
+// listeners are called with the id of the safe/folder a passkey was just added to
+const passkeyAddedListeners = new Set();
+
+function onPasskeyAdded(cb) {
+    passkeyAddedListeners.add(cb);
+    return () => passkeyAddedListeners.delete(cb);
+}
+
+async function passkeyRequest(message, askExtension) {
+
+    if (message.id == 'passkey-create' || message.id == 'passkey-get') {
+        const originError = verifyPasskeyOrigin(message);
+        if (originError) {
+            console.log('passkey origin rejected:', originError, message);
+            return {
+                id: message.id + "-response",
+                error: originError,
+                errorName: "SecurityError",
+                requestId: message.requestId,
+            };
+        }
+    }
+
+    if (message.id == 'passkey-create') {
+
+        console.log('got msg passkey-create', message);
+
+        try {
+            const location = await chooseLocation(askExtension);
+            if (!location) {
+                return {
+                    id: "passkey-create-response",
+                    error: "No safe or folder selected",
+                    errorName: "NotAllowedError",
+                    requestId: message.requestId,
+                };
+            }
+
+            const [passkeyItem, response] = await PasskeyGenerator.createPasskey(message);
+            const cleartext = [
+                passkeyItem.rpName, // title
+                "", // notes
+                passkeyItem.userDisplayName,
+                // passkeyItem.user.name,
+                "", //reserved for password in a combined record 
+                passkeyItem.url,
+                JSON.stringify(passkeyItem.passkey)
+            ];
+
+            const safe = location.safe;
+            const aesKey = safe.bstringKey;
+
+            const encryptedPasskeyItem = encryptItem(cleartext, aesKey, { version: 6 });
+
+            const a = await savePasskey(safe, encryptedPasskeyItem, location.folder);
+            //        const response = await createCredentialForSite(newPasskey, options);
+
+            if (a && a.status === "Ok") {
+                // mirror the saved item locally, in the same shape as decoded server items
+                const newItem = {
+                    ...JSON.parse(encryptedPasskeyItem),
+                    _id: a.firstID,
+                    folder: location.folder || 0,
+                    cleartext,
+                    lastModified: new Date().toISOString(),
+                };
+
+                safe.rawItems = safe.rawItems || [];
+                safe.rawItems.push(newItem);
+
+                const folderId = location.folder;
+                if (!folderId || folderId == "0") {
+                    newItem.path = safe.path;
+                    safe.items = safe.items || [];
+                    safe.items.push(newItem);
+                    safe.items.sort((x, y) =>
+                        x.cleartext[0].toLowerCase().localeCompare(y.cleartext[0].toLowerCase())
+                    );
+                } else {
+                    const folder = (safe.rawFolders || []).find(f => String(f._id) === String(folderId));
+                    if (folder) {
+                        newItem.path = folder.path;
+                        folder.items = folder.items || [];
+                        folder.items.push(newItem);
+                    }
+                }
+                // let the UI (Root) re-render the table pane if it shows this location
+                const locationId = folderId && folderId != "0" ? folderId : safe.id;
+                passkeyAddedListeners.forEach(cb => cb(locationId));
+            }
+
+
+            console.log('98 a ', a);
+            return { id: "passkey-create-response", response, requestId: message.requestId };
+        } catch (e) {
+            console.log('error 108 ', e);
+            return {
+                id: "passkey-create-response",
+                error: e?.message || "Passkey creation failed",
+                errorName: e?.name || "NotAllowedError",
+                requestId: message.requestId,
+            };
+        }
+    }
+    if (message.id == 'passkey-get') {
+        console.log('got msg passkey-create', message);
+
+        // requestId lets the extension deliver the answer to the page that asked
+        const reply = await get(message, askExtension);
+        return { ...reply, requestId: message.requestId };
+    }
+}
+
+// console.log('Extension bridge listener registered');
+
+export { passkeyRequest, onPasskeyAdded };

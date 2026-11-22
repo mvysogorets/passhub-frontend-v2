@@ -2,6 +2,7 @@
 const consoleLog = () => { };
 
 import { getTOTP, getTOTP2 } from "./totp";
+import { passkeyRequest } from "./passhub-passkey-api";
 
 const isIOS = navigator.userAgent.match(/iPhone|iPod|iPad/i)
     || (navigator.userAgent.match(/Intel Mac OS X/i) && navigator.maxTouchPoints > 1);
@@ -49,10 +50,39 @@ async function sendAdvise(message) {
     if (message.id === 'not a payment page') { // legacy
         message.id = 'advise request';
     }
-    if ((message.id === 'advise request') || (message.id === 'payment page') || (message.id === 'address page')) {
+
+
+    if (['advise request', 'payment page', 'address page', 'passkey-create', 'passkey-get'].includes(message.id)) {
         if (restartIdleTimer) {
             restartIdleTimer();
         }
+    }
+
+    if (['passkey-create', 'passkey-get'].includes(message.id)) {
+        // lets the passkey code ask the extension a question and get its reply (e.g. which passkey to use)
+        const askExtension = (msg) => extension.runtime.sendMessage(extensionId, msg)
+            .catch(err => {
+                consoleLog(err);
+                return null;
+            });
+        const passkeyResponse = await passkeyRequest(message, askExtension);
+        extension.runtime.sendMessage(extensionId, passkeyResponse)
+            .then(response => {
+                if (!response) {
+                    if (extension.runtime.lastError) {
+                        consoleLog(extension.runtime.lastError);
+                    } else {
+                        consoleLog('no response');
+                    }
+                } else {
+                    consoleLog('sendAdvise got response');
+                    consoleLog(response);
+                }
+            })
+            .catch(err => {
+                console.log('catch 48')
+            })
+        return;
     }
 
     const found = await findRecords(message);
@@ -221,7 +251,7 @@ function InitiateExtensionConnection() {
             return;
         }
 
-        const message = { id: "remember me", version: 2 };
+        const message = { id: "remember me", version: 3 };
         const promises = [];
 
         for (const extId of extensionIds) {

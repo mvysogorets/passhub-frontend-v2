@@ -11,7 +11,12 @@ import { ErrorBoundary } from "react-error-boundary";
 
 import { serverLog, serverLogPromise, logMeOut } from "./lib/utils";
 
-const queryClient = new QueryClient();
+// userData (also stored under ["accountData"] via setQueryData) contains circular refs
+// (folder.safe <-> safe.folders); structural sharing (replaceEqualDeep) would recurse
+// exponentially on it, so disable it for all queries.
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { structuralSharing: false } },
+});
 
 
 function reportAndLogout(error) {

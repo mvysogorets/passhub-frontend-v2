@@ -29,6 +29,7 @@
     "react-idle-timer": "^5.7.2",
     "react-textarea-autosize": "^8.5.9",
     "react-timer-hook": "^4.0.5",
+    "tldts": "^7.5.5",
     "wwpass-frontend": "^3.6.0"
   },
   "devDependencies": {

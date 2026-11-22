@@ -30,6 +30,9 @@ function ItemModal(props) {
     if (props.args.item.version == 5) {
       _title = props.args.item.cleartext[1]
       _note = props.args.item.cleartext[2];
+    } else if (props.args.item.version == 6) {
+      _title = props.args.item.cleartext[0]
+      _note = props.args.item.cleartext[1]
     } else {
       _title = props.args.item.cleartext[0]
       _note = props.args.item.cleartext[4]
@@ -294,13 +297,13 @@ if (history.length > 0) {
         {(!props.edit && !limitedView) ? (
 
           <div className="itemModalTools">
-            {(historyIndex == 0) && (
+            {!props.disableMove && (historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-move"
                 title="Move"
                 onClick={handleMove}
               />)}
-            {props.args.item && !("file" in props.args.item) && (historyIndex == 0) && (
+            {!props.disableCopy && (historyIndex == 0) && (
               <ItemViewIcon
                 iconId="#f-copy"
                 title="Copy"

@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useReducer } from 'react'
+import { onPasskeyAdded } from "../lib/passhub-passkey-api";
 import axios from "axios";
 
 import { useQuery, useMutation, useQueryClient, focusManager } from "@tanstack/react-query";
@@ -125,6 +126,19 @@ function Root(props) {
   const [copyMoveToastOperation, setCopyMoveToastOperation] = useState("nop");
 
   const queryClient = useQueryClient();
+
+  // re-render table pane when a passkey is added to the folder/safe currently shown
+  const [, forceRender] = useReducer(x => x + 1, 0);
+  useEffect(() => {
+    return onPasskeyAdded(locationId => {
+      // resolve the shown folder the same way MainPage does (falls back to the first safe)
+      const safes = udata.safes || [];
+      const shown = getFolderById(safes, activeFolderId) || safes[0];
+      if (shown && String(shown.id) === String(locationId)) {
+        forceRender();
+      }
+    });
+  }, [activeFolderId, udata]);
 
   const dataMutation = useMutation({
     mutationFn: (_args) => Promise.resolve(_args),

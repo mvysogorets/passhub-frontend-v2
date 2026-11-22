@@ -2,6 +2,7 @@ import * as WWPass from 'wwpass-frontend';
 import { lastModified, serverLog } from './utils';
 import forge from 'node-forge';
 
+
 let WebCryptoPrivateKey = null;
 let ForgePrivateKey = null;
 let publicKeyPem = null;
@@ -379,7 +380,7 @@ function decodeItem(item, aesKey) {
   }
 
 
-  if ((item.version === 3) || (item.version === 4) || (item.version === 5)) {
+  if ((item.version === 3) || (item.version === 4) || (item.version === 5) || (item.version === 6)) {
     const cleartext = decodeItemGCM(item, aesKey);
     item.cleartext = cleartext;
     return;
@@ -705,4 +706,5 @@ export {
   moveFile,
   encryptSafeKey, // for groups
   decryptSafeKey,
+  b64ToAb
 };

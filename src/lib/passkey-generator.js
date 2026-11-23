@@ -377,7 +377,7 @@ async function createPasskeyCreateResponse(passkey, options) {
         ...counter,
         ...attestedCredentialData
     ]);
-    console.log('441 options ', options);
+    // console.log('441 options ', options);
     // Create clientDataJSON
     const clientData = {
         type: 'webauthn.create',

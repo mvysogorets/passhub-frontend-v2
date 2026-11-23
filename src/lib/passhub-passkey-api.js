@@ -27,24 +27,6 @@ const PASSKEY_PAYLOAD_INDEX = 5;
 * API for working with passkeys.
  */
 
-/*
-async function create(message, aesKey) {
-    const [passkey, passkeyCreateResponse] = await PasskeyGenerator.createPasskey(message);
-    console.log('39 passkey', passkey);
-    const encodedPasskey = encodePasskeyCleartext(passkey.cleartext, passkey.passkey);
-    console.log('41 ', encodedPasskey);
-    const encryptedPasskey = encryptItem(
-        encodedPasskey,
-        aesKey,
-        {
-            version: 6,
-        }
-    );
-    return [encryptedPasskey, passkeyCreateResponse];
-}
-
-*/
-
 
 // Ask the extension to show a popup with the candidates; resolves to the chosen index or null.
 // Secrets (passkey, safeKey, item) are never sent, only display fields.
@@ -193,10 +175,10 @@ async function incrementPasskeyCounter(entryId) {
 
 async function get(message, askExtension) {
     const result = await advise(message);
-    console.log('53 result', result);
+    //    console.log('53 result', result);
     const { rpId, found } = result;
-    console.log('foundKeys', found);
-    console.log('rpId', rpId);
+    //    console.log('foundKeys', found);
+    //    console.log('rpId', rpId);
 
     if (!found || found.length === 0) {
         return { id: "passkey-get-response", error: "No matching passkey", errorName: "NotAllowedError" };
@@ -222,7 +204,7 @@ async function get(message, askExtension) {
         // all binary fields are base64url strings
         return { id: "passkey-get-response", assertion };
     } catch (e) {
-        console.log('error in get ', e);
+        //        console.log('error in get ', e);
         return { id: "passkey-get-response", error: String(e?.message || e), errorName: "NotAllowedError" };
     }
 }
@@ -330,7 +312,7 @@ async function passkeyRequest(message, askExtension) {
     if (message.id == 'passkey-create' || message.id == 'passkey-get') {
         const originError = verifyPasskeyOrigin(message);
         if (originError) {
-            console.log('passkey origin rejected:', originError, message);
+            //            console.log('passkey origin rejected:', originError, message);
             return {
                 id: message.id + "-response",
                 error: originError,
@@ -342,7 +324,7 @@ async function passkeyRequest(message, askExtension) {
 
     if (message.id == 'passkey-create') {
 
-        console.log('got msg passkey-create', message);
+        //        console.log('got msg passkey-create', message);
 
         try {
             const location = await chooseLocation(askExtension);
@@ -409,10 +391,10 @@ async function passkeyRequest(message, askExtension) {
             }
 
 
-            console.log('98 a ', a);
+            //            console.log('98 a ', a);
             return { id: "passkey-create-response", response, requestId: message.requestId };
         } catch (e) {
-            console.log('error 108 ', e);
+            //            console.log('error 108 ', e);
             return {
                 id: "passkey-create-response",
                 error: e?.message || "Passkey creation failed",
@@ -422,7 +404,7 @@ async function passkeyRequest(message, askExtension) {
         }
     }
     if (message.id == 'passkey-get') {
-        console.log('got msg passkey-create', message);
+        //        console.log('got msg passkey-create', message);
 
         // requestId lets the extension deliver the answer to the page that asked
         const reply = await get(message, askExtension);

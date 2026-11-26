@@ -334,7 +334,7 @@ function isPasteEnabled(status) {
 */
 
 function isPasswordItem(item) {
-  return !item.note && !item.file && item.version !== 5 && item.version !== 6;
+  return !item.note && !item.file && item.version !== 5 && item.version !== 6 && item.version !== -1;
 }
 
 function isFileItem(item) {
@@ -347,6 +347,9 @@ function isBankCardItem(item) {
 
 function isAddressItem(item) {
   return item.version === 5 && item.cleartext[0] === "addr";
+}
+function isIncompatibleItem(item) {
+  return item.version === -1;
 }
 
 function isNoteItem(item) {
@@ -412,5 +415,6 @@ export {
   isBankCardItem,
   isAddressItem,
   isPasskeyItem,
+  isIncompatibleItem,
   isNoteItem,
 };

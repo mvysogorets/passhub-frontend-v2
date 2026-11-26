@@ -153,16 +153,24 @@ async function incrementPasskeyCounter(entryId) {
         const saved = response.data.item;
 
         if (saved) {
-            Object.assign(localItem, {
+            const update = {
                 iv: saved.iv,
                 data: saved.data,
                 tag: saved.tag,
                 // revision: saved.revision,
                 lastModified: saved.lastModified,
                 version: saved.version,
-            });
-            //            localItem.cleartext = encodedCleartext;
-            localItem.passkey = updatedPasskey;
+                cleartext,
+                passkey: updatedPasskey,
+            };
+            // sync every in-memory copy: safe.rawItems and safe.items
+            const copies = new Set([localItem]);
+            for (const list of [safe.rawItems, safe.items]) {
+                for (const it of list || []) {
+                    if (String(it._id) === String(entryId)) copies.add(it);
+                }
+            }
+            for (const it of copies) Object.assign(it, update);
         }
         return { passkey: updatedPasskey };
     }

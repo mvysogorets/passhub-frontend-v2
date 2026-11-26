@@ -3,6 +3,7 @@ import {
   isPasswordItem,
   isFileItem,
   isBankCardItem,
+  isAddressItem,
   isPasskeyItem,
   isNoteItem,
 } from "./utils";
@@ -264,6 +265,14 @@ const search = (what, searchType = '--All--') => {
       for (const item of safe.rawItems) {
         let found = false;
         if (searchType == 'Cards' && !isBankCardItem(item)) {
+          //          console.log('not a card');
+          continue;
+        }
+        if (searchType == 'Address' && !isAddressItem(item)) {
+          //          console.log('not a card');
+          continue;
+        }
+        if (searchType == 'Passkeys' && !isPasskeyItem(item)) {
           //          console.log('not a card');
           continue;
         }

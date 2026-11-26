@@ -12,6 +12,7 @@ import BankCardItem from "./bankCardItem";
 import FileItem from "./fileItem";
 import AddressItem from "./addressItem";
 import PasskeyItem from "./passkeyItem";
+import IncompatibleItem from './incompatibltem';
 
 import PasswordModal from "./passwordModal";
 import NoteModal from "./noteModal";
@@ -30,7 +31,7 @@ import AddDropUp from "./addDropUp";
 import RefreshButton from './refreshButton';
 
 
-import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isAddressItem, isNoteItem, isPasskeyItem } from "../lib/utils";
+import { getFolderById, isPasswordItem, isFileItem, isBankCardItem, isAddressItem, isNoteItem, isPasskeyItem, isIncompatibleItem } from "../lib/utils";
 
 function TablePane(props) {
 
@@ -528,7 +529,18 @@ function TablePane(props) {
                                                     showItemModal("PasskeyModal", item)
                                                 }
                                             />
-
+                                        ))
+                                        ||
+                                        (isIncompatibleItem(f) && (
+                                            <IncompatibleItem
+                                                item={f}
+                                                key={`item${f._id}`}
+                                                searchMode={props.searchMode}
+                                                newItem={newItemRef.current == f._id}
+                                                showModal={(item) => { }
+                                                    //                                                    showItemModal("PasskeyModal", item)
+                                                }
+                                            />
                                         ))
                                 )}
                             </tbody>

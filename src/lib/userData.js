@@ -7,7 +7,8 @@ import {
   getApiUrl,
   getWsUrl,
   getVerifier,
-  serverLog
+  serverLog,
+  isIncompatibleItem
 } from "../lib/utils";
 
 import mockData from "../lib/mockdata";
@@ -122,8 +123,9 @@ function normalizeFolder(folder, items, folders) {
       }
     }
   }
-  folder.items.sort((a, b) =>
-    a.cleartext[0].toLowerCase().localeCompare(b.cleartext[0].toLowerCase())
+  folder.items.sort((a, b) => {
+    return a.cleartext[0].toLowerCase().localeCompare(b.cleartext[0].toLowerCase())
+  }
   );
 
   folder.folders = [];

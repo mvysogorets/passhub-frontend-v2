@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 import * as passhubCrypto from "../lib/crypto";
-import { encodePasskeyCleartext, isDirectWritableSafe } from "../lib/passkey";
+import { isDirectWritableSafe } from "../lib/passkey";
 import { getApiUrl, getVerifier } from "../lib/utils";
 import ItemModal from "./itemModal";
 import ItemModalFieldNav from "./itemModalFieldNav";
@@ -37,18 +37,17 @@ function PasskeyModal(props) {
   if (!props.show || !item) return null;
 
   const onSubmit = (title, note) => {
-    const cleartext = [
-      title,
-      item.cleartext?.[1] || item.passkey?.rpId || "",
-      item.cleartext?.[2] || "",
-      item.cleartext?.[3] || item.passkey?.rpId || "",
-      note,
-    ];
+    // cleartext[5] already holds the raw passkey JSON (rpId, credentialId, keys, counter...).
+    // Keep it byte-for-byte: only title and note change.
+    const cleartext = [...item.cleartext];
+    cleartext[0] = title;
+    cleartext[1] = note;
+
     const encryptedData = passhubCrypto.encryptItem(
-      encodePasskeyCleartext(cleartext, item.passkey),
+      cleartext,
       safe.bstringKey,
       { version: 6 }
-    );
+    )
 
     updateMutation.mutate({
       verifier: getVerifier(),
@@ -60,6 +59,8 @@ function PasskeyModal(props) {
     });
   };
 
+  const username = item.cleartext?.[2];
+  const url = item.cleartext?.[4] || item.passkey?.rpId;
   const fields = [
     ["Username", item.cleartext?.[2]],
     ["Relying party", item.cleartext?.[4] || item.passkey?.rpId],
@@ -80,16 +81,27 @@ function PasskeyModal(props) {
       limitedView={!isDirectWritableSafe(safe)}
       disableCopy
     >
-      <div className="itemModalField upper">
-        {fields.map(([label, value]) => (
+      <div className="itemNoteModalField" style={{ marginBottom: 32 }}>
+        <div style={{ marginBottom: 32 }}>
+          <ItemModalFieldNav name="Username" />
+          <input style={{ border: "none", background: "transparent" }} readOnly value={username} />
+        </div>
+        <div>
+          <ItemModalFieldNav name="Relying party" />
+          <a href={url} style={{ color: "var(--body-color" }} target="_blank">{url}</a>
+        </div>
+
+
+        {/*fields.map(([label, value]) => (
           <div key={label} style={{ marginBottom: 16 }}>
             <ItemModalFieldNav name={label} />
             <input className="lp" readOnly value={value || ""} />
           </div>
-        ))}
+        ))*/}
       </div>
     </ItemModal>
-  );
-}
+  )
+};
+
 
 export default PasskeyModal;

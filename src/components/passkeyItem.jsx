@@ -88,11 +88,11 @@ function PasskeyItem(props) {
       </td>
 */}
       <td className="d-none d-xl-table-cell">{username}</td>
-      <td className="d-none d-md-table-cell login-item-link">{rpId}</td>
+      <td className="d-none d-md-table-cell login-item-link"><a href={rpId} style={{ color: "var(--link-color", textDecoration: "none" }} target="_blank">{rpId}</a></td>
       <td className="d-none d-lg-table-cell column-modified">
         {lastModified(item)}
       </td>
-    </tr>
+    </tr >
   );
 }
 

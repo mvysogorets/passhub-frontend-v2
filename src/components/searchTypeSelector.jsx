@@ -1,31 +1,9 @@
-import Select from 'react-dropdown-select';
 import Dropdown from "react-bootstrap/Dropdown";
 
 function SearchTypeSelector(props) {
-    const searchTypeArray = [
-        { label: '--All--', value: '--All--' },
-        { label: 'Cards', value: 'Cards' },
-        { label: 'Files', value: 'Files' },
-    ];
 
     return (
         <div>
-            {/*
-            <Select
-                style={{ height: 40, borderRadius: "0 10px 10px 0", width: 100, margin: "0 4px", zIndex: 9999 }}
-                options={searchTypeArray}
-                labelField="label"
-                valueField="value"
-                values={[
-                    { label: props.searchType, value: props.searchType },
-                ]}
-                onChange={(values) => {
-                    console.log(values);
-                    props.onSearchTypeChange(values[0].value);
-                }}
-                placeholder="Search filter"
-            />
-            */}
             <Dropdown
                 onSelect={(value) => {
                     props.onSearchTypeChange(value);
@@ -48,6 +26,8 @@ function SearchTypeSelector(props) {
                     <Dropdown.Item eventKey="--All--">--All--</Dropdown.Item>
                     <Dropdown.Item eventKey="Cards">Cards</Dropdown.Item>
                     <Dropdown.Item eventKey="Files">Files</Dropdown.Item>
+                    <Dropdown.Item eventKey="Address">Address</Dropdown.Item>
+                    <Dropdown.Item eventKey="Passkeys">Passkeys</Dropdown.Item>
                 </Dropdown.Menu>
             </Dropdown>
         </div>
